@@ -46,7 +46,9 @@ class RunConfig(BaseModel):
     # Claude CLI invocation
     model: str = "claude-opus-4-7"
     allowed_tools: list[str] = Field(default_factory=lambda: DEFAULT_ALLOWED_TOOLS.copy())
-    bare_mode: bool = True  # `claude -p --bare`
+    # `claude -p --bare` skips keychain auth (requires ANTHROPIC_API_KEY env var).
+    # Default False so users with `claude auth login` keychain creds just work.
+    bare_mode: bool = False
     permission_mode: Literal["acceptEdits", "auto", "default", "plan", "bypassPermissions"] = "acceptEdits"
     extra_claude_args: list[str] = Field(default_factory=list)
 
