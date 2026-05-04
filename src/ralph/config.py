@@ -24,6 +24,21 @@ DEFAULT_ALLOWED_TOOLS = [
     "Bash(tail *)",
 ]
 
+# Block destructive / state-mutating bash. Ralph reserves git commit/push for
+# its own loop bookkeeping so iteration messages stay deterministic.
+DEFAULT_DISALLOWED_TOOLS = [
+    "Bash(git commit*)",
+    "Bash(git push*)",
+    "Bash(git reset*)",
+    "Bash(git checkout*)",
+    "Bash(git rebase*)",
+    "Bash(git merge*)",
+    "Bash(git branch -D*)",
+    "Bash(rm -rf*)",
+    "Bash(gh repo delete*)",
+    "Bash(gh release delete*)",
+]
+
 
 class RunConfig(BaseModel):
     """All knobs for one Ralph run."""
@@ -46,6 +61,7 @@ class RunConfig(BaseModel):
     # Claude CLI invocation
     model: str = "claude-opus-4-7"
     allowed_tools: list[str] = Field(default_factory=lambda: DEFAULT_ALLOWED_TOOLS.copy())
+    disallowed_tools: list[str] = Field(default_factory=lambda: DEFAULT_DISALLOWED_TOOLS.copy())
     # `claude -p --bare` skips keychain auth (requires ANTHROPIC_API_KEY env var).
     # Default False so users with `claude auth login` keychain creds just work.
     bare_mode: bool = False

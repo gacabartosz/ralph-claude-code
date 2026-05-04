@@ -41,6 +41,7 @@ def invoke_claude(
     cwd: Path,
     model: str,
     allowed_tools: list[str],
+    disallowed_tools: list[str] | None = None,
     permission_mode: str = "acceptEdits",
     bare: bool = True,
     timeout_s: int = 600,
@@ -61,6 +62,8 @@ def invoke_claude(
     cmd += ["--permission-mode", permission_mode]
     if allowed_tools:
         cmd += ["--allowedTools", *allowed_tools]
+    if disallowed_tools:
+        cmd += ["--disallowedTools", *disallowed_tools]
     if extra_args:
         cmd += extra_args
 

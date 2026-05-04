@@ -85,6 +85,7 @@ def run(config: RunConfig) -> RunResult:
                 cwd=wt.path,
                 model=config.model,
                 allowed_tools=config.allowed_tools,
+                disallowed_tools=config.disallowed_tools,
                 permission_mode=config.permission_mode,
                 bare=config.bare_mode,
                 timeout_s=config.iteration_timeout_s,
