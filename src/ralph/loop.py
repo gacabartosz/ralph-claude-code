@@ -93,17 +93,21 @@ def run(config: RunConfig) -> RunResult:
             )
 
             commit_msg = f"ralph(iter {iteration}): {(cl_result.text or '').splitlines()[0][:60] if cl_result.text else 'no output'}"
-            commit_sha = worktree.commit_in_worktree(wt, commit_msg) if config.use_worktree else None
+            # Claude under --permission-mode acceptEdits sometimes commits on
+            # its own. Our commit_in_worktree then sees a clean tree and
+            # returns None — but HEAD has moved. Use "HEAD moved" as the
+            # ground-truth progress signal, regardless of who did the commit.
+            our_commit_sha = worktree.commit_in_worktree(wt, commit_msg) if config.use_worktree else None
             current_sha = worktree.head_sha(wt) if config.use_worktree else ""
-            files_changed = (
-                worktree.files_changed_since(wt, base_sha) if (config.use_worktree and current_sha != base_sha) else 0
-            )
+            head_moved = config.use_worktree and current_sha != base_sha
+            files_changed = worktree.files_changed_since(wt, base_sha) if head_moved else 0
+            commit_sha = our_commit_sha or (current_sha if head_moved else None)
 
             outcome = IterationOutcome(
                 iteration=iteration,
                 cost_usd=cl_result.cost_usd,
                 duration_s=cl_result.duration_s,
-                files_changed=files_changed if commit_sha else 0,
+                files_changed=files_changed,
                 is_error=cl_result.is_error,
                 summary=cl_result.text[:200] if cl_result.text else "",
             )
