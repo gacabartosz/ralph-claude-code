@@ -1,0 +1,169 @@
+name: Reusable — Ralph audit-mcp
+
+# Drop this workflow into your MCP repo to get an autonomous Ralph audit
+# on a schedule (or on demand). The workflow checks out your repo, installs
+# ralph-claude-code from PyPI/GitHub, runs `ralph audit-mcp` against your
+# MCP server command, and uploads the resulting report as an artifact.
+#
+# In your repo, add `.github/workflows/audit.yml`:
+#
+#     name: Weekly Ralph audit
+#     on:
+#       schedule:
+#         - cron: '0 4 * * 0'   # 04:00 UTC every Sunday
+#       workflow_dispatch:
+#     jobs:
+#       audit:
+#         uses: gacabartosz/ralph-claude-code/.github/workflows/audit-mcp-reusable.yml@main
+#         with:
+#           mcp-cmd: 'uv run mcp-zus'
+#           prompt-path: 'audit/PROMPT.md'
+#           max-iterations: 30
+#           max-cost: '20.00'
+#           model: claude-opus-4-7
+#         secrets:
+#           anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
+
+on:
+  workflow_call:
+    inputs:
+      mcp-cmd:
+        description: 'Shell command that spawns the MCP server (stdio).'
+        required: true
+        type: string
+      prompt-path:
+        description: 'Path to PROMPT.md inside the calling repo.'
+        required: true
+        type: string
+      max-iterations:
+        description: 'Hard iteration cap.'
+        type: number
+        default: 30
+      max-cost:
+        description: 'Hard cost cap in USD-equivalent (string).'
+        type: string
+        default: '20.00'
+      model:
+        description: 'Claude model alias or full name.'
+        type: string
+        default: claude-opus-4-7
+      ralph-version:
+        description: 'pip spec for ralph-claude-code (default: install from main).'
+        type: string
+        default: 'git+https://github.com/gacabartosz/ralph-claude-code.git@main'
+    secrets:
+      anthropic-api-key:
+        description: 'Anthropic API key. Required: GitHub Actions has no claude keychain.'
+        required: true
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout calling repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+
+      - name: Install ralph-claude-code
+        run: uv tool install '${{ inputs.ralph-version }}'
+
+      - name: Install Claude Code CLI
+        run: |
+          curl -fsSL https://claude.ai/install.sh | bash
+          echo "$HOME/.claude/bin" >> "$GITHUB_PATH"
+
+      - name: Configure git
+        run: |
+          git config user.email "ralph-bot@users.noreply.github.com"
+          git config user.name "ralph-bot"
+
+      - name: Run ralph audit-mcp
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.anthropic-api-key }}
+        run: |
+          uv tool run --from ralph-claude-code ralph audit-mcp \
+            --mcp-cmd "${{ inputs.mcp-cmd }}" \
+            --prompt "${{ inputs.prompt-path }}" \
+            --repo . \
+            --model "${{ inputs.model }}" \
+            --max-iterations ${{ inputs.max-iterations }} \
+            --max-cost "${{ inputs.max-cost }}" \
+            --branch "ralph/audit-${{ github.run_id }}" \
+            --keep
+        continue-on-error: true
+
+      - name: Render audit report
+        run: |
+          RUN_DIR=$(ls -d .ralph-runs/audit-* | head -1)
+          WORKTREE=$(ls -d .ralph-worktrees/* | head -1)
+          uv tool run --from ralph-claude-code python -c "
+          import sys
+          sys.path.insert(0, 'scripts')
+          " || true
+          # If render_audit_report.py is shipped with ralph install, use it:
+          uv run --with 'git+https://github.com/gacabartosz/ralph-claude-code.git@main' \
+            python -c "
+          import importlib.util, urllib.request, tempfile
+          url = 'https://raw.githubusercontent.com/gacabartosz/ralph-claude-code/main/scripts/render_audit_report.py'
+          src = urllib.request.urlopen(url).read()
+          with tempfile.NamedTemporaryFile(mode='wb', suffix='.py', delete=False) as f:
+              f.write(src); path = f.name
+          spec = importlib.util.spec_from_file_location('rar', path)
+          mod = importlib.util.module_from_spec(spec); spec.loader.exec_module(mod)
+          import pathlib
+          md = mod.render(pathlib.Path('$RUN_DIR'), pathlib.Path('$WORKTREE'))
+          pathlib.Path('RALPH_AUDIT_REPORT.md').write_text(md, encoding='utf-8')
+          print(f'wrote {len(md)} chars')
+          "
+
+      - name: Upload audit artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ralph-audit-${{ github.run_id }}
+          path: |
+            RALPH_AUDIT_REPORT.md
+            .ralph-runs/
+            .ralph-worktrees/*/TOOLS_AUDIT.md
+            .ralph-worktrees/*/ISSUES.md
+            .ralph-worktrees/*/COVERAGE.md
+            .ralph-worktrees/*/fix_plan.md
+          retention-days: 90
+
+      - name: Open PR with report
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ ! -f RALPH_AUDIT_REPORT.md ]; then
+            echo "No report — skipping PR"
+            exit 0
+          fi
+          BRANCH="ralph/audit-${{ github.run_id }}"
+          git checkout -B "$BRANCH" || git checkout "$BRANCH"
+          git add RALPH_AUDIT_REPORT.md
+          git commit -m "ralph: audit report ${{ github.run_id }}" --no-verify || echo "nothing to commit"
+          git push -u origin "$BRANCH" --force-with-lease || true
+          gh pr create \
+            --title "Ralph audit: run ${{ github.run_id }}" \
+            --body "Autonomous audit by [ralph-claude-code](https://github.com/gacabartosz/ralph-claude-code). See RALPH_AUDIT_REPORT.md." \
+            --base "${{ github.event.repository.default_branch }}" \
+            --head "$BRANCH" || echo "PR already exists or failed"
