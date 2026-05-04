@@ -142,6 +142,64 @@ def cmd_audit_mcp(
     raise typer.Exit(code=0 if result.status == RunStatus.COMPLETE else 1)
 
 
+@app.command(name="version")
+def cmd_version():
+    """Print ralph-claude-code version."""
+    from ralph import __version__
+
+    console.print(f"ralph-claude-code v{__version__}")
+
+
+@app.command(name="init")
+def cmd_init(
+    out: Path = typer.Option(Path.cwd() / "PROMPT.md", "--out", help="Where to write PROMPT.md"),
+    mission: str = typer.Option("(describe your mission here)", "--mission", help="One-line mission summary"),
+    completion_signal: str = typer.Option("EXIT_SIGNAL: true", "--completion-signal"),
+    overwrite: bool = typer.Option(False, "--overwrite"),
+):
+    """Bootstrap a fresh PROMPT.md skeleton in canonical Ralph form."""
+    if out.exists() and not overwrite:
+        console.print(f"[red]{out} already exists. Pass --overwrite to replace.[/red]")
+        raise typer.Exit(code=1)
+
+    template = f"""# Mission
+
+{mission}
+
+You are running inside an autonomous Ralph loop. Each iteration you receive
+this PROMPT.md plus a snapshot of `@fix_plan.md`. Pick the topmost unchecked
+item, do exactly ONE thing, update `fix_plan.md`, then exit.
+
+## Phase plan
+
+1. <Phase 1 goal>
+2. <Phase 2 goal>
+3. <Phase 3 goal>
+
+## State files
+
+- `@fix_plan.md` — priority-sorted to-do list. You update it each iteration.
+- `@notes.md` — append-only working notes (cite evidence here).
+
+## Rules
+
+- Do ONE thing per iteration.
+- DO NOT IMPLEMENT PLACEHOLDER OR SIMPLE IMPLEMENTATIONS.
+- Cite evidence in `notes.md` for every claim.
+- Stay inside the worktree; never push to remote.
+
+## Exit criterion
+
+When all items in `fix_plan.md` are checked and `notes.md` covers every
+phase, output exactly: `{completion_signal}` and stop.
+"""
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(template, encoding="utf-8")
+    console.print(f"[green]Wrote {out}[/green]")
+    console.print("Edit it to define your specific mission, then run:")
+    console.print(f"  uv run ralph run --prompt {out} --max-iterations 30 --max-cost 20")
+
+
 @app.command(name="status")
 def cmd_status(
     run_dir: Path = typer.Argument(..., help="Path to .ralph-runs/<run-id>/"),
