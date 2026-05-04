@@ -1,6 +1,7 @@
-"""ralph-claude-code — Ralph Wiggum loop for Claude Code.
+"""mcp-ralph-audit — Ralph-loop MCP test harness for Claude Code.
 
 Pattern: https://ghuntley.com/ralph/
+Repo:    https://github.com/gacabartosz/mcp-ralph-audit
 """
 from __future__ import annotations
 

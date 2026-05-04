@@ -12,7 +12,7 @@ set -euo pipefail
 
 MCP_PATH="${MCP_PATH:-/Users/gaca/projects/personal/mcp-zus}"
 
-uv run ralph audit-mcp \
+uv run mcp-ralph audit-mcp \
     --mcp-cmd "uv run --directory ${MCP_PATH} mcp-zus" \
     --prompt "$(dirname "$0")/../prompts/audit-mcp-zus.md" \
     --repo "${MCP_PATH}" \

@@ -16,7 +16,7 @@ on:
 
 jobs:
   audit:
-    uses: gacabartosz/ralph-claude-code/.github/workflows/audit-mcp-reusable.yml@main
+    uses: gacabartosz/mcp-ralph-audit/.github/workflows/audit-mcp-reusable.yml@main
     with:
       mcp-cmd: 'uv run mcp-zus'
       prompt-path: 'audit/PROMPT.md'
@@ -80,7 +80,7 @@ For reproducible audits, pin `ralph-version`:
 with:
   mcp-cmd: 'uv run mcp-zus'
   prompt-path: 'audit/PROMPT.md'
-  ralph-version: 'git+https://github.com/gacabartosz/ralph-claude-code.git@v0.1.0'
+  ralph-version: 'git+https://github.com/gacabartosz/mcp-ralph-audit.git@v0.1.0'
 ```
 
 (Pin to a tag once we publish releases.)
@@ -90,7 +90,7 @@ with:
 Before letting the workflow run weekly with budget, rehearse locally:
 
 ```bash
-uv run ralph audit-mcp \
+uv run mcp-ralph audit-mcp \
     --mcp-cmd 'uv run mcp-zus' \
     --prompt audit/PROMPT.md \
     --repo . \

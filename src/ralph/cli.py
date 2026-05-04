@@ -144,10 +144,10 @@ def cmd_audit_mcp(
 
 @app.command(name="version")
 def cmd_version():
-    """Print ralph-claude-code version."""
+    """Print mcp-ralph-audit version."""
     from ralph import __version__
 
-    console.print(f"ralph-claude-code v{__version__}")
+    console.print(f"mcp-ralph-audit v{__version__}")
 
 
 @app.command(name="init")

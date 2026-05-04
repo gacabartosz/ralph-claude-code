@@ -61,7 +61,7 @@ class McpStdioClient:
             {
                 "protocolVersion": "2024-11-05",
                 "capabilities": {},
-                "clientInfo": {"name": "ralph-claude-code", "version": "0.1.0"},
+                "clientInfo": {"name": "mcp-ralph-audit", "version": "0.1.0"},
             },
         )
         await self._send_notification("notifications/initialized", {})

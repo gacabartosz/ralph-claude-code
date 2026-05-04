@@ -1,8 +1,14 @@
 # Changelog
 
-All notable changes to ralph-claude-code. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
+All notable changes to mcp-ralph-audit. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
+
+### Renamed
+- Project renamed from `ralph-claude-code` to `mcp-ralph-audit` to disambiguate from the much-older [`frankbria/ralph-claude-code`](https://github.com/frankbria/ralph-claude-code) (8.9k stars, generic Ralph loop). Our project is specifically the MCP-audit harness — different scope, different audience.
+- Python package: `ralph-claude-code` → `mcp-ralph-audit`.
+- CLI entry point: `ralph` → `mcp-ralph` (the legacy `ralph` command name still resolves for now; will be dropped in a future minor version).
+- GitHub repo URL: `gacabartosz/ralph-claude-code` → `gacabartosz/mcp-ralph-audit`.
 
 ### Added
 - `ralph version` prints `ralph-claude-code v<version>`.

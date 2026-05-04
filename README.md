@@ -1,11 +1,13 @@
-# ralph-claude-code
+# mcp-ralph-audit
 
-> **Ralph Wiggum loop for Claude Code with cost caps, worktree isolation, and MCP audit mode.**
-> Pattern: [ghuntley.com/ralph](https://ghuntley.com/ralph/) — `while :; do cat PROMPT.md | claude -p; done` made production-safe.
+> **Ralph-loop MCP test harness for Claude Code.** Cost caps, worktree isolation, autonomous audits with GitHub Actions integration.
+> Pattern: [ghuntley.com/ralph](https://ghuntley.com/ralph/) — `while :; do cat PROMPT.md | claude -p; done` made production-safe and pointed at MCP servers.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![Status: Alpha](https://img.shields.io/badge/status-alpha-orange.svg)]()
+
+> **Note on naming:** there's also [`frankbria/ralph-claude-code`](https://github.com/frankbria/ralph-claude-code) — a generic Ralph-loop runner with intelligent exit detection and 8.9k+ stars. **This project is different**: it's a *specialized harness for auditing MCP servers* (built around `audit-mcp` mode, GitHub Actions reusable workflow, ISSUES.md → `gh issue create`). Use `frankbria/ralph-claude-code` for general-purpose autonomous coding loops; use this for "audit my MCP server end-to-end".
 
 ## What it does
 
@@ -27,17 +29,17 @@ Three motivations:
 ## Quickstart
 
 ```bash
-git clone https://github.com/gacabartosz/ralph-claude-code.git
+git clone https://github.com/gacabartosz/mcp-ralph-audit.git
 cd ralph-claude-code
 uv sync --all-extras
 
 # Dry-run smoke test (no API calls):
-uv run ralph audit-mcp --dry-run \
+uv run mcp-ralph audit-mcp --dry-run \
     --mcp-cmd "echo fake" \
     --max-iterations 3 --max-cost 1.00
 
 # Real audit of mcp-zus:
-uv run ralph audit-mcp \
+uv run mcp-ralph audit-mcp \
     --mcp-cmd "uv run --directory /path/to/mcp-zus mcp-zus" \
     --prompt prompts/audit-mcp-zus.md \
     --model claude-opus-4-7 \
@@ -71,7 +73,7 @@ Drop into your MCP repo's `.github/workflows/audit.yml`:
 on: { schedule: [{ cron: '0 4 * * 0' }], workflow_dispatch: }
 jobs:
   audit:
-    uses: gacabartosz/ralph-claude-code/.github/workflows/audit-mcp-reusable.yml@main
+    uses: gacabartosz/mcp-ralph-audit/.github/workflows/audit-mcp-reusable.yml@main
     with:
       mcp-cmd: 'uv run your-mcp-server'
       prompt-path: 'audit/PROMPT.md'

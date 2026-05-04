@@ -14,7 +14,7 @@ name: Reusable — Ralph audit-mcp
 #       workflow_dispatch:
 #     jobs:
 #       audit:
-#         uses: gacabartosz/ralph-claude-code/.github/workflows/audit-mcp-reusable.yml@main
+#         uses: gacabartosz/mcp-ralph-audit/.github/workflows/audit-mcp-reusable.yml@main
 #         with:
 #           mcp-cmd: 'uv run mcp-zus'
 #           prompt-path: 'audit/PROMPT.md'
@@ -50,7 +50,7 @@ on:
       ralph-version:
         description: 'pip spec for ralph-claude-code (default: install from main).'
         type: string
-        default: 'git+https://github.com/gacabartosz/ralph-claude-code.git@main'
+        default: 'git+https://github.com/gacabartosz/mcp-ralph-audit.git@main'
     secrets:
       anthropic-api-key:
         description: 'Anthropic API key. Required: GitHub Actions has no claude keychain.'
@@ -119,10 +119,10 @@ jobs:
           sys.path.insert(0, 'scripts')
           " || true
           # If render_audit_report.py is shipped with ralph install, use it:
-          uv run --with 'git+https://github.com/gacabartosz/ralph-claude-code.git@main' \
+          uv run --with 'git+https://github.com/gacabartosz/mcp-ralph-audit.git@main' \
             python -c "
           import importlib.util, urllib.request, tempfile
-          url = 'https://raw.githubusercontent.com/gacabartosz/ralph-claude-code/main/scripts/render_audit_report.py'
+          url = 'https://raw.githubusercontent.com/gacabartosz/mcp-ralph-audit/main/scripts/render_audit_report.py'
           src = urllib.request.urlopen(url).read()
           with tempfile.NamedTemporaryFile(mode='wb', suffix='.py', delete=False) as f:
               f.write(src); path = f.name
@@ -164,6 +164,6 @@ jobs:
           git push -u origin "$BRANCH" --force-with-lease || true
           gh pr create \
             --title "Ralph audit: run ${{ github.run_id }}" \
-            --body "Autonomous audit by [ralph-claude-code](https://github.com/gacabartosz/ralph-claude-code). See RALPH_AUDIT_REPORT.md." \
+            --body "Autonomous audit by [ralph-claude-code](https://github.com/gacabartosz/mcp-ralph-audit). See RALPH_AUDIT_REPORT.md." \
             --base "${{ github.event.repository.default_branch }}" \
             --head "$BRANCH" || echo "PR already exists or failed"

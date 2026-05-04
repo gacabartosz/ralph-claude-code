@@ -12,7 +12,7 @@ End-to-end walkthrough using `gacabartosz/mcp-zus` as a worked example.
 ## Step 1 — install ralph
 
 ```bash
-git clone https://github.com/gacabartosz/ralph-claude-code.git
+git clone https://github.com/gacabartosz/mcp-ralph-audit.git
 cd ralph-claude-code
 uv sync --all-extras
 ```
@@ -20,7 +20,7 @@ uv sync --all-extras
 Smoke check:
 
 ```bash
-uv run ralph audit-mcp --dry-run \
+uv run mcp-ralph audit-mcp --dry-run \
     --mcp-cmd "echo fake" \
     --max-iterations 3 --max-cost 1.00
 ```
@@ -63,7 +63,7 @@ output exactly the line: `EXIT_SIGNAL: true`
 ## Step 3 — run the audit
 
 ```bash
-uv run ralph audit-mcp \
+uv run mcp-ralph audit-mcp \
     --mcp-cmd "uv run --directory /path/to/your-mcp-repo your-mcp-cmd" \
     --prompt prompts/audit-your-mcp.md \
     --repo /path/to/your-mcp-repo \
@@ -95,7 +95,7 @@ Stop conditions (whichever fires first):
 In another terminal:
 
 ```bash
-uv run ralph status /path/to/your-mcp-repo/.ralph-runs/audit-XXXXXXXX
+uv run mcp-ralph status /path/to/your-mcp-repo/.ralph-runs/audit-XXXXXXXX
 ```
 
 Shows a live Rich table of iterations, costs, durations, files changed.
@@ -103,7 +103,7 @@ Shows a live Rich table of iterations, costs, durations, files changed.
 Or list all runs:
 
 ```bash
-uv run ralph runs --repo /path/to/your-mcp-repo
+uv run mcp-ralph runs --repo /path/to/your-mcp-repo
 ```
 
 ## Step 5 — render a final report
@@ -149,7 +149,7 @@ git branch -D ralph/audit-XXXX
 Old run directories can be cleaned in bulk:
 
 ```bash
-uv run ralph runs --repo /path/to/your-mcp-repo --clean-older-than 30
+uv run mcp-ralph runs --repo /path/to/your-mcp-repo --clean-older-than 30
 ```
 
 ## Cost expectations (Opus 4.7)
