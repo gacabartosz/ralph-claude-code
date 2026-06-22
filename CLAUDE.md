@@ -97,10 +97,13 @@ The system uses a modular architecture with reusable components in the `lib/` di
    - `rotate_logs()`: rotates `$LOG_DIR/ralph.log` at 10MB, keeping 4 archived files (`.log.1`–`.log.4`)
    - Cross-platform `stat` support: GNU (`stat -c%s`) with BSD (`stat -f%z`) fallback
 
-10. **lib/agents/** - Multi-provider command-construction seam (Issue #312, MP.1)
-    - `registry.sh`: `agent_build_command()` dispatches to the active provider's adapter; `AGENT_PROVIDER` defaults to `claude`. Sourced from `ralph_loop.sh` **after** the `_env_AGENT_PROVIDER` capture so the lib's source-time default never masks an explicit environment value (capture-before-source convention).
-    - `claude.sh`: `agent_claude_build_command()` — the reference adapter. Reproduces the historical `build_claude_command` argv byte-for-byte (`--model/--effort`, `--output-format json`, `--allowedTools …`, `--resume <id>`, `--append-system-prompt <ctx>`, `-p <prompt>`).
-    - `build_claude_command()` in `ralph_loop.sh` is now a thin wrapper around `agent_build_command "$@"`; the `CLAUDE_CMD_ARGS` output array and all downstream consumers are unchanged. Provider selection (config/CLI/tmux) lands in #314.
+10. **lib/agents/** - Multi-provider adapter seam (Issues #312 MP.1, #313 MP.2)
+    - `registry.sh`: dispatches to the active provider's adapter — `agent_build_command()` (command construction), `agent_detect_format()` / `agent_normalize_response()` (output normalization). `AGENT_PROVIDER` defaults to `claude`. Sourced from `ralph_loop.sh` **after** the `_env_AGENT_PROVIDER` capture so the lib's source-time default never masks an explicit environment value (capture-before-source convention).
+    - `claude.sh`: the reference adapter — two halves.
+      - **Command construction** (#312): `agent_claude_build_command()` reproduces the historical `build_claude_command` argv byte-for-byte (`--model/--effort`, `--output-format json`, `--allowedTools …`, `--resume <id>`, `--append-system-prompt <ctx>`, `-p <prompt>`).
+      - **Output normalization** (#313): owns the Claude-specific parsing (`detect_output_format`, `parse_json_response`, `_file_size_bytes`, `RALPH_JSONL_SAFE_MAX_BYTES`) plus contract wrappers `agent_claude_detect_format()` / `agent_claude_normalize_response()`. Produces Ralph's normalized analysis struct in `.ralph/.json_parse_result`.
+    - `build_claude_command()` in `ralph_loop.sh` is a thin wrapper around `agent_build_command "$@"`; `CLAUDE_CMD_ARGS` and downstream consumers are unchanged.
+    - `lib/response_analyzer.sh` sources `claude.sh` directly (not the registry, to avoid `AGENT_PROVIDER` source-time side effects) and `analyze_response()` routes format detection + JSON parsing through the `agent_claude_*` wrappers — provider-agnostic with zero behavior change. Provider selection (config/CLI/tmux) lands in #314.
 
 ## Key Commands
 

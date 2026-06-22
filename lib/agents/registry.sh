@@ -44,3 +44,46 @@ agent_build_command() {
             ;;
     esac
 }
+
+# agent_detect_format - dispatch output-format detection to the active adapter.
+#
+# Args: output_file
+# Output: "json" or "text" on stdout
+# Returns: the adapter's return code; 1 for an unknown provider.
+agent_detect_format() {
+    case "$AGENT_PROVIDER" in
+        claude)
+            agent_claude_detect_format "$@"
+            ;;
+        *)
+            if declare -f log_status >/dev/null 2>&1; then
+                log_status "ERROR" "Unknown AGENT_PROVIDER: '$AGENT_PROVIDER'"
+            else
+                echo "ERROR: Unknown AGENT_PROVIDER: '$AGENT_PROVIDER'" >&2
+            fi
+            return 1
+            ;;
+    esac
+}
+
+# agent_normalize_response - dispatch response normalization to the active
+# adapter. The adapter parses a raw output file into Ralph's normalized analysis
+# struct (written to result_file, default .ralph/.json_parse_result).
+#
+# Args: output_file [result_file]
+# Returns: the adapter's return code; 1 for an unknown provider.
+agent_normalize_response() {
+    case "$AGENT_PROVIDER" in
+        claude)
+            agent_claude_normalize_response "$@"
+            ;;
+        *)
+            if declare -f log_status >/dev/null 2>&1; then
+                log_status "ERROR" "Unknown AGENT_PROVIDER: '$AGENT_PROVIDER'"
+            else
+                echo "ERROR: Unknown AGENT_PROVIDER: '$AGENT_PROVIDER'" >&2
+            fi
+            return 1
+            ;;
+    esac
+}
