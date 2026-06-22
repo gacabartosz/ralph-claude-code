@@ -20,6 +20,19 @@ AGENTS_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # lib so an explicit environment value is not masked by this default).
 AGENT_PROVIDER="${AGENT_PROVIDER:-claude}"
 
+# Space-separated list of registered providers (adapters available in this lib).
+# Provider selection (#314) validates AGENT_PROVIDER against this list.
+AGENT_REGISTERED_PROVIDERS="claude"
+
+# agent_provider_is_registered - return 0 if $1 is a registered provider.
+agent_provider_is_registered() {
+    local name="$1" p
+    for p in $AGENT_REGISTERED_PROVIDERS; do
+        [[ "$p" == "$name" ]] && return 0
+    done
+    return 1
+}
+
 # Source the reference adapter.
 # shellcheck source=lib/agents/claude.sh
 source "$AGENTS_LIB_DIR/claude.sh"

@@ -307,6 +307,12 @@ EOF
     [[ "$output" =~ "TASK_SOURCES=\"local,beads\"" ]]
 }
 
+@test "generate_ralphrc includes AGENT_PROVIDER default (#314)" {
+    output=$(generate_ralphrc "my-project" "typescript" "local")
+
+    [[ "$output" =~ "AGENT_PROVIDER=\"claude\"" ]]
+}
+
 # =============================================================================
 # FULL ENABLE FLOW (3 tests)
 # =============================================================================

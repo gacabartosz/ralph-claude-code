@@ -380,6 +380,7 @@ build_ralph_cmd_for_test() {
     local CLAUDE_ALLOWED_TOOLS="${6:-Write,Read,Edit,Bash(git add *),Bash(git commit *),Bash(git diff *),Bash(git log *),Bash(git status),Bash(git status *),Bash(git push *),Bash(git pull *),Bash(git fetch *),Bash(git checkout *),Bash(git branch *),Bash(git stash *),Bash(git merge *),Bash(git tag *),Bash(npm *),Bash(pytest)}"
     local CLAUDE_USE_CONTINUE="${7:-true}"
     local CLAUDE_SESSION_EXPIRY_HOURS="${8:-24}"
+    local _cli_AGENT_PROVIDER="${9:-}"
     local RALPH_DIR=".ralph"
 
     # Forward --calls if non-default
@@ -413,6 +414,10 @@ build_ralph_cmd_for_test() {
     # Forward --session-expiry if non-default (default is 24)
     if [[ "$CLAUDE_SESSION_EXPIRY_HOURS" != "24" ]]; then
         ralph_cmd="$ralph_cmd --session-expiry $CLAUDE_SESSION_EXPIRY_HOURS"
+    fi
+    # Forward --provider if explicitly set via CLI (#314)
+    if [[ -n "$_cli_AGENT_PROVIDER" ]]; then
+        ralph_cmd="$ralph_cmd --provider $_cli_AGENT_PROVIDER"
     fi
 
     echo "$ralph_cmd"
@@ -463,4 +468,77 @@ build_ralph_cmd_for_test() {
     local result=$(build_ralph_cmd_for_test 100 ".ralph/PROMPT.md" "json" "false" "15" "Write,Read,Edit,Bash(git add *),Bash(git commit *),Bash(git diff *),Bash(git log *),Bash(git status),Bash(git status *),Bash(git push *),Bash(git pull *),Bash(git fetch *),Bash(git checkout *),Bash(git branch *),Bash(git stash *),Bash(git merge *),Bash(git tag *),Bash(npm *),Bash(pytest)" "true" "24")
     # Should only be "ralph" with no extra flags
     [[ "$result" == "ralph" ]]
+}
+
+# =============================================================================
+# AGENT PROVIDER SELECTION (#314 / MP.3)
+# =============================================================================
+
+@test "provider: --provider claude is accepted by the parser" {
+    run bash "$RALPH_SCRIPT" --provider claude --help
+    assert_success
+    [[ "$output" == *"Usage"* ]]
+}
+
+@test "provider: --provider with unknown name exits with guidance" {
+    run bash "$RALPH_SCRIPT" --provider bogus
+    assert_failure
+    [[ "$output" == *"unknown agent provider"* ]]
+    [[ "$output" == *"Registered providers: claude"* ]]
+}
+
+@test "provider: --provider with no argument errors" {
+    run bash "$RALPH_SCRIPT" --provider
+    assert_failure
+    [[ "$output" == *"requires a provider name"* ]]
+}
+
+@test "provider: --help documents --provider and lists registered providers" {
+    run bash "$RALPH_SCRIPT" --help
+    assert_success
+    [[ "$output" == *"--provider"* ]]
+    [[ "$output" == *"Registered: claude"* ]]
+}
+
+@test "provider: defaults to claude when nothing is set" {
+    # Source the registry directly and confirm the default + registration.
+    source "${BATS_TEST_DIRNAME}/../../lib/agents/registry.sh"
+    [ "$AGENT_PROVIDER" = "claude" ]
+    agent_provider_is_registered "claude"
+    ! agent_provider_is_registered "bogus"
+}
+
+@test "provider precedence: unknown provider from env is validated and rejected" {
+    run env AGENT_PROVIDER=bogus bash "$RALPH_SCRIPT"
+    assert_failure
+    [[ "$output" == *"Unknown agent provider: 'bogus'"* ]]
+}
+
+@test "provider precedence: unknown provider from .ralphrc is validated and rejected" {
+    echo 'AGENT_PROVIDER="bogus"' > .ralphrc
+    run bash "$RALPH_SCRIPT"
+    assert_failure
+    [[ "$output" == *"Unknown agent provider: 'bogus'"* ]]
+}
+
+@test "provider precedence: env overrides .ralphrc (env > .ralphrc)" {
+    # .ralphrc requests an invalid provider; a valid env value must win, so the
+    # provider-validation error must NOT appear.
+    echo 'AGENT_PROVIDER="bogus"' > .ralphrc
+    run env AGENT_PROVIDER=claude bash "$RALPH_SCRIPT"
+    [[ "$output" != *"Unknown agent provider"* ]]
+}
+
+@test "provider forwarding: monitor forwards --provider when set via CLI" {
+    local result
+    result=$(build_ralph_cmd_for_test 100 ".ralph/PROMPT.md" "json" "false" "15" \
+        "Write,Read" "true" "24" "claude")
+    [[ "$result" == *"--provider claude"* ]]
+}
+
+@test "provider forwarding: monitor omits --provider when not set via CLI" {
+    local result
+    result=$(build_ralph_cmd_for_test 100 ".ralph/PROMPT.md" "json" "false" "15" \
+        "Write,Read" "true" "24")
+    [[ "$result" != *"--provider"* ]]
 }

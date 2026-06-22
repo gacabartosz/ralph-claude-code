@@ -165,6 +165,7 @@ RALPHRC_LOADED=false
 #   - CLAUDE_CODE_CMD (path or command for Claude Code CLI)
 #   - CLAUDE_AUTO_UPDATE (auto-update Claude CLI at startup)
 #   - RALPH_SHELL_INIT_FILE (shell init file to source before running claude)
+#   - AGENT_PROVIDER (agent adapter; resolved in main() as env > --provider > .ralphrc, #314)
 #
 load_ralphrc() {
     if [[ ! -f "$RALPHRC_FILE" ]]; then
@@ -389,6 +390,12 @@ setup_tmux_session() {
     # Forward --backup if enabled (Issue #23)
     if [[ "$ENABLE_BACKUP" == "true" ]]; then
         ralph_cmd="$ralph_cmd --backup"
+    fi
+    # Forward --provider if explicitly set via CLI (#314). The env var and
+    # .ralphrc are inherited by the tmux pane (same environment + cwd), so only
+    # the CLI choice needs forwarding.
+    if [[ -n "${_cli_AGENT_PROVIDER:-}" ]]; then
+        ralph_cmd="$ralph_cmd --provider $_cli_AGENT_PROVIDER"
     fi
 
     # Chain tmux kill-session after the loop command so the entire tmux
@@ -2008,6 +2015,23 @@ main() {
     # _cli_ENABLE_BACKUP is set only when --backup / -b was explicitly passed
     [[ "${_cli_ENABLE_BACKUP:-false}" == "true" ]] && ENABLE_BACKUP=true
 
+    # Resolve agent provider precedence: env > CLI (--provider) > .ralphrc >
+    # default claude (#314). .ralphrc was sourced by load_ralphrc above (lowest);
+    # _env_AGENT_PROVIDER was captured before any sourcing (highest).
+    if [[ -n "$_env_AGENT_PROVIDER" ]]; then
+        AGENT_PROVIDER="$_env_AGENT_PROVIDER"
+    elif [[ -n "${_cli_AGENT_PROVIDER:-}" ]]; then
+        AGENT_PROVIDER="$_cli_AGENT_PROVIDER"
+    fi
+    AGENT_PROVIDER="${AGENT_PROVIDER:-claude}"
+    if ! agent_provider_is_registered "$AGENT_PROVIDER"; then
+        log_status "ERROR" "Unknown agent provider: '$AGENT_PROVIDER'"
+        echo "Registered providers: $AGENT_REGISTERED_PROVIDERS" >&2
+        echo "Configure via --provider <name>, the AGENT_PROVIDER env var, or .ralphrc." >&2
+        exit 1
+    fi
+    [[ "${VERBOSE_PROGRESS:-}" == "true" ]] && log_status "INFO" "Agent provider: $AGENT_PROVIDER"
+
     # Source user shell init file if configured (e.g. ~/.zshrc for zsh environments)
     # This allows non-bash shells or non-standard setups to export PATH/env vars
     # needed by the claude command before validation runs.
@@ -2320,6 +2344,9 @@ Modern CLI Options (Phase 1.1):
     --allowed-tools TOOLS   Comma-separated list of allowed tools (default: $CLAUDE_ALLOWED_TOOLS)
     --no-continue           Disable session continuity across loops
     --session-expiry HOURS  Set session expiration time in hours (default: $CLAUDE_SESSION_EXPIRY_HOURS)
+    --provider NAME         Select the agent provider (default: $AGENT_PROVIDER)
+                            Registered: $AGENT_REGISTERED_PROVIDERS
+                            Precedence: AGENT_PROVIDER env > --provider > .ralphrc
 
 Files created:
     - $LOG_DIR/: All execution logs
@@ -2438,6 +2465,21 @@ while [[ $# -gt 0 ]]; do
         --no-continue)
             CLAUDE_USE_CONTINUE=false
             shift
+            ;;
+        --provider)
+            if [[ -z "${2:-}" ]]; then
+                echo "Error: --provider requires a provider name"
+                exit 1
+            fi
+            if ! agent_provider_is_registered "$2"; then
+                echo "Error: unknown agent provider: '$2'"
+                echo "Registered providers: $AGENT_REGISTERED_PROVIDERS"
+                exit 1
+            fi
+            # Record the CLI choice; final precedence (env > CLI > .ralphrc) is
+            # resolved in main() after load_ralphrc (#314).
+            _cli_AGENT_PROVIDER="$2"
+            shift 2
             ;;
         --session-expiry)
             if [[ -z "$2" || ! "$2" =~ ^[1-9][0-9]*$ ]]; then

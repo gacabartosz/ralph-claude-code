@@ -704,6 +704,11 @@ PROJECT_TYPE="${project_type}"
 #   "/path/to/claude"                (custom path)
 CLAUDE_CODE_CMD="${claude_cmd}"
 
+# Agent provider (multi-provider epic, #314)
+# Selects which agent CLI adapter Ralph drives. Default: claude.
+# Precedence: AGENT_PROVIDER env var > --provider flag > this file.
+AGENT_PROVIDER="claude"
+
 # Loop settings
 MAX_CALLS_PER_HOUR=100
 CLAUDE_TIMEOUT_MINUTES=15
