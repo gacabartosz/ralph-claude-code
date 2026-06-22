@@ -286,7 +286,12 @@ EOF
     # Ensure .ralphrc does NOT exist
     rm -f .ralphrc
 
-    # Source ralph_enable.sh's phase_verification by extracting it
+    # Extract phase_verification to a real temp file, then source that file.
+    # bash 3.2 (macOS default) does not reliably define functions via
+    # `source <(process-substitution)`, so we avoid it here.
+    local pv_file="$TEST_DIR/.phase_verification.sh"
+    sed -n '/^phase_verification()/,/^}/p' "${BATS_TEST_DIRNAME}/../../ralph_enable.sh" > "$pv_file"
+
     # We call the function directly to test verification logic in isolation
     run bash -c '
         source "'"$LIB_DIR"'/enable_core.sh"
@@ -294,8 +299,8 @@ EOF
         cd "'"$TEST_DIR"'"
         NON_INTERACTIVE=true
 
-        # Define phase_verification from ralph_enable.sh
-        source <(sed -n "/^phase_verification()/,/^}/p" "'"${BATS_TEST_DIRNAME}"'/../../ralph_enable.sh")
+        # Define phase_verification from ralph_enable.sh (sourced from temp file)
+        source "'"$pv_file"'"
 
         phase_verification
     '
@@ -316,6 +321,12 @@ EOF
     # Verify .ralphrc exists (sanity check)
     [[ -f ".ralphrc" ]]
 
+    # Extract phase_verification to a real temp file, then source that file.
+    # bash 3.2 (macOS default) does not reliably define functions via
+    # `source <(process-substitution)`, so we avoid it here.
+    local pv_file="$TEST_DIR/.phase_verification.sh"
+    sed -n '/^phase_verification()/,/^}/p' "${BATS_TEST_DIRNAME}/../../ralph_enable.sh" > "$pv_file"
+
     # Run phase_verification in isolation
     run bash -c '
         source "'"$LIB_DIR"'/enable_core.sh"
@@ -323,8 +334,8 @@ EOF
         cd "'"$TEST_DIR"'"
         NON_INTERACTIVE=true
 
-        # Define phase_verification from ralph_enable.sh
-        source <(sed -n "/^phase_verification()/,/^}/p" "'"${BATS_TEST_DIRNAME}"'/../../ralph_enable.sh")
+        # Define phase_verification from ralph_enable.sh (sourced from temp file)
+        source "'"$pv_file"'"
 
         phase_verification
     '

@@ -69,7 +69,10 @@ teardown() {
 @test "rotate_logs: falls back to BSD stat when GNU stat -c%s fails" {
     dd if=/dev/zero bs=1048576 count=11 > "$LOG_DIR/ralph.log" 2>/dev/null
 
-    # Stub stat: fail on -c%s (GNU), succeed on -f%z (BSD) by delegating to real stat -c%s
+    # Stub stat: fail on -c%s (GNU), succeed on -f%z (BSD). The BSD branch
+    # returns the byte count via `wc -c` so the test is host-portable — it
+    # must not delegate to `stat -c%s`, which does not exist on a real BSD
+    # `stat` (macOS) and would make this test fail there.
     local real_stat
     real_stat="$(command -v stat)"
     mkdir -p "$TEST_TEMP_DIR/bin"
@@ -81,7 +84,8 @@ if [[ "\$1" == "-c%s" ]]; then
 fi
 if [[ "\$1" == "-f%z" ]]; then
   shift
-  exec "$real_stat" -c%s "\$@"
+  wc -c < "\$1" | tr -d '[:space:]'
+  exit 0
 fi
 exec "$real_stat" "\$@"
 STUBEOF

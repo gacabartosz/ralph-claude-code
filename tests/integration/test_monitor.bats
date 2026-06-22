@@ -1,10 +1,16 @@
 #!/usr/bin/env bats
 # Integration tests for ralph_monitor.sh dashboard (Issue #15)
 #
-# Sourcing strategy: `head -n -1` loads all function definitions from
-# ralph_monitor.sh without triggering the unconditional `main` call on
-# the last line. This mirrors the inline/source pattern used in
-# test_tmux_integration.bats and test_loop_execution.bats.
+# Sourcing strategy: load all function definitions from ralph_monitor.sh
+# without triggering the unconditional `main` call on the last line.
+# - `sed '$d'` deletes that last line and is portable to BSD/macOS, unlike
+#   GNU-only `head -n -1`.
+# - The result is written to a temp file and sourced from there. bash 3.2
+#   (macOS default) does NOT define functions when sourcing a process
+#   substitution (`source <(...)`), so that pattern silently yields zero
+#   functions and every test errors. Sourcing a real file works everywhere.
+# This mirrors the inline/source pattern used in test_tmux_integration.bats
+# and test_loop_execution.bats.
 
 bats_require_minimum_version 1.5.0
 
@@ -18,10 +24,15 @@ setup() {
 
     MONITOR_SCRIPT="${BATS_TEST_DIRNAME}/../../ralph_monitor.sh"
 
-    # Load all monitor functions without calling main().
-    # head -n -1 strips the bare `main` call on the final line.
+    # Load all monitor functions without calling main(). sed '$d' strips the
+    # bare `main` call on the final line (BSD-portable); source from a temp
+    # file because bash 3.2 does not define functions via `source <(...)`.
+    local monitor_funcs
+    monitor_funcs="$(mktemp)"
+    sed '$d' "$MONITOR_SCRIPT" > "$monitor_funcs"
     # shellcheck disable=SC1090
-    source <(head -n -1 "$MONITOR_SCRIPT")
+    source "$monitor_funcs"
+    rm -f "$monitor_funcs"
 
     # Override clear_screen to suppress terminal-escape side-effects in tests.
     clear_screen() { :; }
@@ -224,10 +235,14 @@ EOF
         return 1
     }
 
-    # Verify ralph_monitor.sh registers an EXIT trap that calls cleanup
+    # Verify ralph_monitor.sh registers an EXIT trap that calls cleanup.
+    # Source from a temp file (bash 3.2 cannot define functions via
+    # `source <(process-substitution)`).
+    local mon_funcs="$TEST_DIR/.monitor_funcs.sh"
+    sed '$d' "${BATS_TEST_DIRNAME}/../../ralph_monitor.sh" > "$mon_funcs"
     local trap_output
     trap_output=$(bash -c "
-        source <(head -n -1 '${BATS_TEST_DIRNAME}/../../ralph_monitor.sh')
+        source '$mon_funcs'
         trap -p EXIT
     " 2>/dev/null)
     echo "$trap_output" | grep -q "cleanup" || {

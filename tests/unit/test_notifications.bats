@@ -166,15 +166,21 @@ echo "\$@" > "$NOTIFY_SEND_CALL_FILE"
 EOF
     chmod +x "$bin_dir/notify-send"
 
-    # Use a PATH that has notify-send but no osascript
-    # Keep system tools (/usr/bin:/bin) available for the test to function
-    export PATH="$bin_dir:/usr/bin:/bin"
+    # Simulate Linux: notify-send present, osascript absent. PATH is restricted
+    # to ONLY the mock dir for the call so a host osascript (present at
+    # /usr/bin/osascript on macOS) cannot be found — making this test
+    # host-portable. The mock runs via its absolute `#!/bin/bash` shebang and
+    # uses only the echo builtin, so no system PATH entries are needed here.
+    local saved_path="$PATH"
+    export PATH="$bin_dir"
 
     send_notification "Ralph - Rate Limit" "Rate limit reached"
 
+    export PATH="$saved_path"
+
     [[ -f "$NOTIFY_SEND_CALL_FILE" ]]
     local args
-    args=$(cat "$NOTIFY_SEND_CALL_FILE")
+    args=$(<"$NOTIFY_SEND_CALL_FILE")
     [[ "$args" == *"Ralph - Rate Limit"* ]]
     [[ "$args" == *"Rate limit reached"* ]]
 }

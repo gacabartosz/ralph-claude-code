@@ -31,7 +31,11 @@ anything until the plan reflects reality.
   - Committed `docs(plan): refresh open work from real issues`.
 
 ## Phase P0 — Self-hosting hygiene (quick win; do FIRST)
-- [ ] P0.a — Make the bats suite macOS-portable so the dogfood host's `npm test` matches Linux CI (R.1 caveat). Replace `head -n -1` with `sed '$d'` in `tests/integration/test_monitor.bats` (lines ~24, ~230); gate the BSD-`stat` fallback test in `test_log_rotation.bats` and the `notify-send`/`osascript` test in `test_notifications.bats` so they skip on the absent platform; avoid `source <(process-substitution)` for function defs in `test_ralph_enable.bats` ×2 (use a temp-file source). **Bats:** the four affected files must pass on macOS (bash 3.2 + BSD coreutils) AND stay green on Linux CI; verify `test_monitor.bats`'s 8 tests now execute. Do NOT weaken assertions — only fix host portability.
+- [x] P0.a — Made the bats suite macOS-portable; dogfood host now runs **691/691 green** (was 679 pass / 4 fail / 8 not-run on bash 3.2 + BSD coreutils). **Fixes (no assertions weakened):**
+  - `test_monitor.bats`: `head -n -1` → `sed '$d'` (BSD-portable) AND switched both sourcing sites from `source <(...)` to a temp-file source — root cause of the "8 not-run" was bash 3.2 silently defining **zero** functions from a process-substitution source (`display_status` missing → every test errored in setup).
+  - `test_log_rotation.bats`: BSD-`stat` fallback test's stub returned the byte count via `wc -c` instead of delegating to GNU `stat -c%s` (which doesn't exist on real BSD `stat`) — keeps the test meaningful on both platforms.
+  - `test_notifications.bats`: "notify-send on Linux" test now restricts PATH to the mock dir during the call so a host `osascript` (`/usr/bin/osascript` on macOS) can't shadow the notify-send branch; reads the call file via the `$(<…)` builtin.
+  - `test_ralph_enable.bats` ×2: extract `phase_verification` to a temp file and source it instead of `source <(sed …)` (bash 3.2 process-substitution function-def issue).
 
 ## Phase MP — Multi-provider epic (dominant roadmap, UNSTARTED; `#312–327`)
 > Big items: split further into sub-steps when picked (scope ≤6 files/loop). Each ships bats tests; `npm test` stays green.
