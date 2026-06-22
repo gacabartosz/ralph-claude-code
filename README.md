@@ -425,11 +425,12 @@ CB_SAME_ERROR_THRESHOLD=5
 ### Multi-Provider Support (experimental)
 
 Ralph drives an agent CLI through a pluggable adapter seam. Claude Code is the
-default and reference provider; **Codex** (`codex exec`) is the pilot non-Claude
-provider. Select one with precedence **env > `--provider` > `.ralphrc`**:
+default and reference provider; **Codex** (`codex exec`) and **Gemini**
+(`gemini`) are non-Claude provider adapters. Select one with precedence
+**env > `--provider` > `.ralphrc`**:
 
 ```bash
-ralph --provider codex          # one-off
+ralph --provider codex          # one-off (or: gemini)
 AGENT_PROVIDER=codex ralph       # environment (highest precedence)
 AGENT_PROVIDER="codex"           # .ralphrc (lowest precedence)
 ```
@@ -440,10 +441,12 @@ AGENT_PROVIDER="codex"           # .ralphrc (lowest precedence)
 |---|---|---|---|---|---|---|
 | `claude` | reference/default | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `codex`  | pilot | ✅ | ❌ (sandbox/approval) | ❌ | ✅ | ✅ |
+| `gemini` | adapter | ✅ | ❌ (approval-mode) | ❌ | ✅ (pre-assigned) | ✅ |
 
 Unsupported features degrade gracefully (no-op + one-time warning); exit detection
 via `RALPH_STATUS` is provider-independent. See
-[docs/providers/CODEX.md](docs/providers/CODEX.md) for the Codex adapter details.
+[docs/providers/CODEX.md](docs/providers/CODEX.md) and
+[docs/providers/GEMINI.md](docs/providers/GEMINI.md) for adapter details.
 
 ### Rate Limiting & Circuit Breaker
 
