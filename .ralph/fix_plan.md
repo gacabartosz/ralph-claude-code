@@ -8,7 +8,14 @@ The docs (`IMPLEMENTATION_STATUS.md`, `IMPLEMENTATION_PLAN.md`) say v0.9.8 / Pha
 **v0.11.5** with much of Phase 3 (and possibly Phase 6 sandbox) already merged. Do NOT implement
 anything until the plan reflects reality.
 
-- [ ] R.1 — Run `npm test`; record the real current test count + pass rate (used in R.3). Read-only step.
+- [x] R.1 — Run `npm test`; record the real current test count + pass rate (used in R.3). Read-only step.
+  - **Result (2026-06-22, on macOS host: bash 3.2.57 + BSD coreutils):** 691 tests planned; 683 executed → **679 pass / 4 fail**; 8 not executed (test_monitor.bats setup errors out).
+  - **All 12 anomalies are HOST-specific, NOT code regressions** — they pass on the Linux CI quality gate (bash 4+/5+, GNU coreutils):
+    1. `test_log_rotation.bats` "BSD stat fallback" — the stub delegates to GNU `stat -c%s`, absent on BSD `stat`.
+    2. `test_notifications.bats` "notify-send on Linux" — macOS ships `/usr/bin/osascript`; test keeps `/usr/bin` in PATH so it can't hide it.
+    3. `test_ralph_enable.bats` ×2 (`.ralphrc` verification) — `source <(process-substitution)` does not define functions in bash 3.2.57.
+    4. `test_monitor.bats` ×8 (0 run) — setup uses `head -n -1` (GNU-only; BSD `head` errors) + bash-3.2 process substitution.
+  - **NOTE for R.4:** add a genuinely-open item "make bats suite macOS-portable" (replace `head -n -1` with `sed '$d'`, gate BSD-stat/osascript stubs, avoid `source <(...)` for function defs).
 - [ ] R.2 — Build the true open-work list: `gh issue list --state open --limit 0` (read-only, upstream) and `git log --oneline -40`; cross-check against `IMPLEMENTATION_STATUS.md`. Identify which roadmap issues are ALREADY done in code (grep: `rotate_logs`, `track_metrics`, `send_notification`, `create_backup`, `MAX_TOKENS_PER_HOUR`, `SANDBOX_PROVIDER`).
 - [ ] R.3 — Rewrite `IMPLEMENTATION_STATUS.md` to reflect v0.11.5: correct version/date, real test count, mark merged Phase 3 items done (#18 log-rotation, #21 metrics, #22 notifications, #23 backup, #223 token-limit) and any Phase 6 sandbox progress (#74/#75 referenced in .ralphrc). Commit `docs(status): reconcile to v0.11.5`.
 - [ ] R.4 — Append the genuinely-open issues (from R.2) below as granular `- [ ]` sub-steps, each with its own bats test requirement. Remove any item already done. Commit `docs(plan): refresh open work from real issues`.
