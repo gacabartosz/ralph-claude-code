@@ -188,3 +188,73 @@ assert_args() {
         [ "$arg" != "--dangerously-skip-permissions" ]
     done
 }
+
+# ── Capabilities matrix (#315 / MP.4) ───────────────────────────────────────
+
+@test "capabilities: claude adapter declares the full feature set" {
+    agent_claude_has_capability "supports_token_usage"
+    agent_claude_has_capability "supports_permission_denials"
+    agent_claude_has_capability "supports_api_limit_detection"
+    agent_claude_has_capability "supports_session_resume"
+}
+
+@test "capabilities: claude adapter rejects an unknown capability" {
+    ! agent_claude_has_capability "supports_telepathy"
+}
+
+@test "capabilities: agent_has_capability dispatches to the active provider" {
+    agent_has_capability "supports_token_usage"
+    ! agent_has_capability "supports_telepathy"
+}
+
+@test "capabilities: unknown provider supports nothing" {
+    AGENT_PROVIDER="ghost"
+    ! agent_has_capability "supports_token_usage"
+    ! agent_has_capability "supports_session_resume"
+}
+
+@test "capability gate: supported capability returns 0 and emits no warning" {
+    local warns="$TEST_DIR/warns"
+    : > "$warns"
+    log_status() { echo "$*" >> "$warns"; }
+    run agent_capability_enabled "supports_token_usage" "token limiting"
+    assert_success
+    [ ! -s "$warns" ]
+}
+
+@test "capability gate: unsupported capability returns 1 and warns once" {
+    local warns="$TEST_DIR/warns"
+    : > "$warns"
+    log_status() { echo "$*" >> "$warns"; }
+    # Drive the unsupported path via an unknown provider (supports nothing).
+    AGENT_PROVIDER="ghost"
+    run agent_capability_enabled "supports_token_usage" "token limiting"
+    assert_failure
+    # NOTE: `run` executes in a subshell, so _AGENT_CAP_WARNED state does not
+    # persist between the two `run` calls below. Exercise one-time behavior in a
+    # single shell instead (next test).
+    [[ "$(cat "$warns")" == *"does not support supports_token_usage"* ]]
+    [[ "$(cat "$warns")" == *"token limiting disabled"* ]]
+}
+
+@test "capability gate: WARN is emitted at most once per capability" {
+    local warns="$TEST_DIR/warns"
+    : > "$warns"
+    log_status() { echo "$*" >> "$warns"; }
+    AGENT_PROVIDER="ghost"
+    # Same shell (no `run`) so _AGENT_CAP_WARNED persists across calls.
+    agent_capability_enabled "supports_token_usage" "token limiting" || true
+    agent_capability_enabled "supports_token_usage" "token limiting" || true
+    agent_capability_enabled "supports_token_usage" "token limiting" || true
+    [ "$(grep -c "supports_token_usage" "$warns")" -eq 1 ]
+}
+
+@test "capability gate: different capabilities each warn once" {
+    local warns="$TEST_DIR/warns"
+    : > "$warns"
+    log_status() { echo "$*" >> "$warns"; }
+    AGENT_PROVIDER="ghost"
+    agent_capability_enabled "supports_token_usage" "token limiting" || true
+    agent_capability_enabled "supports_permission_denials" "permission CB" || true
+    [ "$(wc -l < "$warns")" -eq 2 ]
+}

@@ -100,3 +100,52 @@ agent_normalize_response() {
             ;;
     esac
 }
+
+# =============================================================================
+# CAPABILITIES (multi-provider epic, #315 / MP.4)
+# =============================================================================
+# Ralph has Claude-specific features (token-usage limiting, the permission-denial
+# circuit breaker #101, API-limit detection #100/#183, session resume). For
+# providers that cannot supply the underlying signal, those features must no-op
+# gracefully rather than misbehave. Adapters declare a capability record; callers
+# gate the dependent feature on agent_capability_enabled. Exit detection via
+# RALPH_STATUS stays always-on (portable) and is intentionally not gated.
+
+# agent_has_capability <capability> - does the active provider support it?
+# Returns 0 if supported, 1 otherwise (unknown providers support nothing).
+agent_has_capability() {
+    case "$AGENT_PROVIDER" in
+        claude)
+            agent_claude_has_capability "$@"
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
+# Space-delimited record of capabilities already warned about, so each
+# degradation WARN is logged at most once per process (bash 3.2: a string, not
+# an associative array).
+_AGENT_CAP_WARNED=""
+
+# agent_capability_enabled <capability> [feature_label]
+# Returns 0 if the active provider supports <capability> (caller proceeds).
+# Otherwise logs a one-time WARN (per capability) and returns 1 so the caller
+# can no-op the dependent feature. feature_label defaults to the capability name.
+agent_capability_enabled() {
+    local cap="$1" feature_label="${2:-$1}"
+    if agent_has_capability "$cap"; then
+        return 0
+    fi
+    case " $_AGENT_CAP_WARNED " in
+        *" $cap "*) return 1 ;;  # already warned for this capability
+    esac
+    _AGENT_CAP_WARNED="$_AGENT_CAP_WARNED $cap"
+    if declare -f log_status >/dev/null 2>&1; then
+        log_status "WARN" "Provider '$AGENT_PROVIDER' does not support $cap; $feature_label disabled"
+    else
+        echo "WARN: provider '$AGENT_PROVIDER' does not support $cap; $feature_label disabled" >&2
+    fi
+    return 1
+}

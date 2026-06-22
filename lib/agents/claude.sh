@@ -429,3 +429,21 @@ agent_claude_detect_format() {
 agent_claude_normalize_response() {
     parse_json_response "$@"
 }
+
+# =============================================================================
+# CAPABILITIES (multi-provider epic, #315 / MP.4)
+# =============================================================================
+# Capability record for the Claude adapter. Claude supports Ralph's full feature
+# set; future adapters declare a subset and Ralph degrades gracefully (gated via
+# agent_capability_enabled in the registry). Space-separated for bash 3.2
+# compatibility (no associative arrays).
+AGENT_CLAUDE_CAPABILITIES="supports_token_usage supports_permission_denials supports_api_limit_detection supports_session_resume"
+
+# agent_claude_has_capability <capability> -> 0 if Claude supports it, else 1.
+agent_claude_has_capability() {
+    local cap="$1" c
+    for c in $AGENT_CLAUDE_CAPABILITIES; do
+        [[ "$c" == "$cap" ]] && return 0
+    done
+    return 1
+}
