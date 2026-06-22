@@ -425,12 +425,12 @@ CB_SAME_ERROR_THRESHOLD=5
 ### Multi-Provider Support (experimental)
 
 Ralph drives an agent CLI through a pluggable adapter seam. Claude Code is the
-default and reference provider; **Codex** (`codex exec`) and **Gemini**
-(`gemini`) are non-Claude provider adapters. Select one with precedence
-**env > `--provider` > `.ralphrc`**:
+default and reference provider; **Codex** (`codex exec`), **Gemini** (`gemini`)
+and **OpenCode** (`opencode run`) are non-Claude provider adapters. Select one
+with precedence **env > `--provider` > `.ralphrc`**:
 
 ```bash
-ralph --provider codex          # one-off (or: gemini)
+ralph --provider codex          # one-off (or: gemini, opencode)
 AGENT_PROVIDER=codex ralph       # environment (highest precedence)
 AGENT_PROVIDER="codex"           # .ralphrc (lowest precedence)
 ```
@@ -439,14 +439,16 @@ AGENT_PROVIDER="codex"           # .ralphrc (lowest precedence)
 
 | Provider | Status | Token limiting | Permission-denial CB (#101) | API-limit detection (#100/#183) | Session resume | Exit via `RALPH_STATUS` |
 |---|---|---|---|---|---|---|
-| `claude` | reference/default | ✅ | ✅ | ✅ | ✅ | ✅ |
-| `codex`  | pilot | ✅ | ❌ (sandbox/approval) | ❌ | ✅ | ✅ |
-| `gemini` | adapter | ✅ | ❌ (approval-mode) | ❌ | ✅ (pre-assigned) | ✅ |
+| `claude`   | reference/default | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `codex`    | pilot | ✅ | ❌ (sandbox/approval) | ❌ | ✅ | ✅ |
+| `gemini`   | adapter | ✅ | ❌ (approval-mode) | ❌ | ✅ (pre-assigned) | ✅ |
+| `opencode` | adapter | ✅ | ❌ (auto-approve) | ❌ | ✅ (`-s <id>`) | ✅ |
 
 Unsupported features degrade gracefully (no-op + one-time warning); exit detection
 via `RALPH_STATUS` is provider-independent. See
-[docs/providers/CODEX.md](docs/providers/CODEX.md) and
-[docs/providers/GEMINI.md](docs/providers/GEMINI.md) for adapter details.
+[docs/providers/CODEX.md](docs/providers/CODEX.md),
+[docs/providers/GEMINI.md](docs/providers/GEMINI.md) and
+[docs/providers/OPENCODE.md](docs/providers/OPENCODE.md) for adapter details.
 
 ### Rate Limiting & Circuit Breaker
 
