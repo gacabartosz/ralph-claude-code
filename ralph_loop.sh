@@ -10,6 +10,15 @@
 
 # Source library components
 SCRIPT_DIR="$(dirname "${BASH_SOURCE[0]}")"
+
+# Capture AGENT_PROVIDER from the environment BEFORE sourcing any lib. The agents
+# registry — pulled in transitively by lib/response_analyzer.sh below (so the
+# analyzer can route normalization through the active adapter), and again
+# explicitly further down — sets AGENT_PROVIDER's default at source time. Capturing
+# the env value first preserves the capture-before-source convention so an explicit
+# environment value is never masked (#314 / #317 MP.6b).
+_env_AGENT_PROVIDER="${AGENT_PROVIDER:-}"
+
 source "$SCRIPT_DIR/lib/date_utils.sh" || { echo "FATAL: Failed to source lib/date_utils.sh" >&2; exit 1; }
 source "$SCRIPT_DIR/lib/timeout_utils.sh" || { echo "FATAL: Failed to source lib/timeout_utils.sh" >&2; exit 1; }
 source "$SCRIPT_DIR/lib/response_analyzer.sh" || { echo "FATAL: Failed to source lib/response_analyzer.sh" >&2; exit 1; }
@@ -52,13 +61,13 @@ _env_CLAUDE_EFFORT="${CLAUDE_EFFORT:-}"
 _env_RALPH_SHELL_INIT_FILE="${RALPH_SHELL_INIT_FILE:-}"
 _env_ENABLE_NOTIFICATIONS="${ENABLE_NOTIFICATIONS:-}"
 _env_ENABLE_BACKUP="${ENABLE_BACKUP:-}"
-_env_AGENT_PROVIDER="${AGENT_PROVIDER:-}"
+# (_env_AGENT_PROVIDER is captured at the very top, before any lib is sourced.)
 
-# Agent provider registry (multi-provider epic, #312). Sourced AFTER the _env_*
-# capture above so the lib's source-time AGENT_PROVIDER default does not mask an
-# explicit value from the environment (capture-before-source convention). This
-# defines agent_build_command(), the command-construction seam build_claude_command
-# delegates to. Selection currently resolves to the Claude reference adapter.
+# Agent provider registry (multi-provider epic, #312/#317). Idempotent re-source
+# (lib/response_analyzer.sh already pulled it in); kept explicit so ralph_loop.sh
+# documents its dependency and stays correct regardless of analyzer internals.
+# Defines the agent_* dispatchers (build/detect/normalize/capability) the loop and
+# analyzer route through. _env_AGENT_PROVIDER was captured before the first source.
 source "$SCRIPT_DIR/lib/agents/registry.sh" || { echo "FATAL: Failed to source lib/agents/registry.sh" >&2; exit 1; }
 
 # Now set defaults (only if not already set by environment)

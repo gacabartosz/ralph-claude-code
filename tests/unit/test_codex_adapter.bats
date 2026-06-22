@@ -156,3 +156,39 @@ teardown() {
     agent_has_capability "supports_session_resume"
     ! agent_has_capability "supports_permission_denials"
 }
+
+# ── Loop integration: analyze_response routes through the active adapter (#317 MP.6b) ──
+
+@test "codex integration: analyze_response parses codex JSONL and detects exit via RALPH_STATUS" {
+    # response_analyzer routes detection + normalization through the registry
+    # dispatch, so the active provider's parser runs end-to-end.
+    # shellcheck disable=SC1090
+    source "${BATS_TEST_DIRNAME}/../../lib/response_analyzer.sh"
+    export AGENT_PROVIDER="codex"
+    local analysis="$RALPH_DIR/.response_analysis"
+
+    analyze_response "$FIXTURES/codex_jsonl.json" 1 "$analysis"
+
+    [ "$(jq -r '.output_format' "$analysis")" = "json" ]
+    [ "$(jq -r '.analysis.exit_signal' "$analysis")" = "true" ]
+    [ "$(jq -r '.analysis.has_completion_signal' "$analysis")" = "true" ]
+    [[ "$(jq -r '.analysis.work_summary' "$analysis")" == *"Implemented the feature"* ]]
+}
+
+@test "codex integration: analyze_response yields no exit when RALPH_STATUS absent" {
+    # shellcheck disable=SC1090
+    source "${BATS_TEST_DIRNAME}/../../lib/response_analyzer.sh"
+    export AGENT_PROVIDER="codex"
+    local out="$TEST_DIR/codex_nostatus.jsonl"
+    {
+        echo '{"type":"session","session_id":"s2"}'
+        echo '{"type":"assistant","text":"Made some progress, still working."}'
+        echo '{"type":"result","usage":{"input_tokens":10,"output_tokens":5}}'
+    } > "$out"
+    local analysis="$RALPH_DIR/.response_analysis"
+
+    analyze_response "$out" 1 "$analysis"
+
+    # JSON mode + no RALPH_STATUS -> heuristics suppressed (#224), no exit.
+    [ "$(jq -r '.analysis.exit_signal' "$analysis")" = "false" ]
+}

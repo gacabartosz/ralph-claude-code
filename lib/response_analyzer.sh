@@ -5,14 +5,14 @@
 # Source date utilities for cross-platform compatibility
 source "$(dirname "${BASH_SOURCE[0]}")/date_utils.sh"
 
-# Source the Claude agent adapter for output normalization (multi-provider epic,
-# #313 / MP.2). The Claude-specific JSON/stream parsing (detect_output_format,
-# parse_json_response, plus the RALPH_JSONL size guard) lives in the adapter now;
-# this file consumes the normalized struct via the agent_claude_* contract
-# wrappers. Sourcing claude.sh directly (not the registry) keeps this analyzer
-# free of the registry's AGENT_PROVIDER side effects, preserving the
-# capture-before-source convention in ralph_loop.sh.
-source "$(dirname "${BASH_SOURCE[0]}")/agents/claude.sh"
+# Source the agent registry for provider-agnostic output normalization
+# (multi-provider epic, #313 MP.2 / #317 MP.6b). Provider-specific parsing lives
+# in the adapters; analyze_response() routes format detection + normalization
+# through the registry dispatchers (agent_detect_format / agent_normalize_response)
+# so `ralph --provider <p>` analyzes that provider's output. The registry sets an
+# AGENT_PROVIDER default at source time, so ralph_loop.sh captures
+# _env_AGENT_PROVIDER BEFORE sourcing this file (capture-before-source).
+source "$(dirname "${BASH_SOURCE[0]}")/agents/registry.sh"
 
 # Response Analysis Functions
 # Based on expert recommendations from Martin Fowler, Michael Nygard, Sam Newman
@@ -86,13 +86,14 @@ analyze_response() {
     local output_length=${#output_content}
 
     # Detect output format and try JSON parsing first.
-    # Routed through the active agent adapter's normalize contract (#313 / MP.2);
-    # the Claude adapter reproduces the historical parsing exactly.
-    local output_format=$(agent_claude_detect_format "$output_file")
+    # Routed through the ACTIVE provider adapter via the registry dispatch
+    # (#313 MP.2 / #317 MP.6b): claude reproduces the historical parsing exactly,
+    # codex parses its JSONL event stream, etc.
+    local output_format=$(agent_detect_format "$output_file")
 
     if [[ "$output_format" == "json" ]]; then
-        # Try JSON parsing via the adapter normalizer
-        if agent_claude_normalize_response "$output_file" "$RALPH_DIR/.json_parse_result" 2>/dev/null; then
+        # Normalize via the active adapter
+        if agent_normalize_response "$output_file" "$RALPH_DIR/.json_parse_result" 2>/dev/null; then
             # Extract values from JSON parse result
             has_completion_signal=$(jq -r '.has_completion_signal' $RALPH_DIR/.json_parse_result 2>/dev/null || echo "false")
             exit_signal=$(jq -r '.exit_signal' $RALPH_DIR/.json_parse_result 2>/dev/null || echo "false")
