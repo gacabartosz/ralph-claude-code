@@ -4,8 +4,8 @@
 # Resolves the active agent provider and dispatches command construction to its
 # adapter. This is the abstraction seam for the multi-provider epic.
 #
-# Claude is the reference adapter and default; Codex is the pilot non-Claude
-# provider (#317). Selection (AGENT_PROVIDER env/CLI/.ralphrc) is wired in #314.
+# Claude is the reference adapter and default; Codex (#317) and Gemini (#318) are
+# non-Claude provider adapters. Selection (AGENT_PROVIDER env/CLI/.ralphrc) is #314.
 #
 # Adapter contract: each provider lib defines agent_<name>_{build_command,
 # detect_format,normalize_response,has_capability} + AGENT_<NAME>_CAPABILITIES.
@@ -23,7 +23,7 @@ AGENT_PROVIDER="${AGENT_PROVIDER:-claude}"
 
 # Space-separated list of registered providers (adapters available in this lib).
 # Provider selection (#314) validates AGENT_PROVIDER against this list.
-AGENT_REGISTERED_PROVIDERS="claude codex"
+AGENT_REGISTERED_PROVIDERS="claude codex gemini"
 
 # agent_provider_is_registered - return 0 if $1 is a registered provider.
 agent_provider_is_registered() {
@@ -39,6 +39,8 @@ agent_provider_is_registered() {
 source "$AGENTS_LIB_DIR/claude.sh"
 # shellcheck source=lib/agents/codex.sh
 source "$AGENTS_LIB_DIR/codex.sh"
+# shellcheck source=lib/agents/gemini.sh
+source "$AGENTS_LIB_DIR/gemini.sh"
 
 # agent_build_command - dispatch command construction to the active adapter.
 #
@@ -52,6 +54,9 @@ agent_build_command() {
             ;;
         codex)
             agent_codex_build_command "$@"
+            ;;
+        gemini)
+            agent_gemini_build_command "$@"
             ;;
         *)
             if declare -f log_status >/dev/null 2>&1; then
@@ -77,6 +82,9 @@ agent_detect_format() {
         codex)
             agent_codex_detect_format "$@"
             ;;
+        gemini)
+            agent_gemini_detect_format "$@"
+            ;;
         *)
             if declare -f log_status >/dev/null 2>&1; then
                 log_status "ERROR" "Unknown AGENT_PROVIDER: '$AGENT_PROVIDER'"
@@ -101,6 +109,9 @@ agent_normalize_response() {
             ;;
         codex)
             agent_codex_normalize_response "$@"
+            ;;
+        gemini)
+            agent_gemini_normalize_response "$@"
             ;;
         *)
             if declare -f log_status >/dev/null 2>&1; then
@@ -132,6 +143,9 @@ agent_has_capability() {
             ;;
         codex)
             agent_codex_has_capability "$@"
+            ;;
+        gemini)
+            agent_gemini_has_capability "$@"
             ;;
         *)
             return 1
