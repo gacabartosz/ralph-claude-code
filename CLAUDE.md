@@ -97,6 +97,11 @@ The system uses a modular architecture with reusable components in the `lib/` di
    - `rotate_logs()`: rotates `$LOG_DIR/ralph.log` at 10MB, keeping 4 archived files (`.log.1`–`.log.4`)
    - Cross-platform `stat` support: GNU (`stat -c%s`) with BSD (`stat -f%z`) fallback
 
+10. **lib/agents/** - Multi-provider command-construction seam (Issue #312, MP.1)
+    - `registry.sh`: `agent_build_command()` dispatches to the active provider's adapter; `AGENT_PROVIDER` defaults to `claude`. Sourced from `ralph_loop.sh` **after** the `_env_AGENT_PROVIDER` capture so the lib's source-time default never masks an explicit environment value (capture-before-source convention).
+    - `claude.sh`: `agent_claude_build_command()` — the reference adapter. Reproduces the historical `build_claude_command` argv byte-for-byte (`--model/--effort`, `--output-format json`, `--allowedTools …`, `--resume <id>`, `--append-system-prompt <ctx>`, `-p <prompt>`).
+    - `build_claude_command()` in `ralph_loop.sh` is now a thin wrapper around `agent_build_command "$@"`; the `CLAUDE_CMD_ARGS` output array and all downstream consumers are unchanged. Provider selection (config/CLI/tmux) lands in #314.
+
 ## Key Commands
 
 ### Installation

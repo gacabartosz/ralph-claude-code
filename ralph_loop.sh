@@ -52,6 +52,14 @@ _env_CLAUDE_EFFORT="${CLAUDE_EFFORT:-}"
 _env_RALPH_SHELL_INIT_FILE="${RALPH_SHELL_INIT_FILE:-}"
 _env_ENABLE_NOTIFICATIONS="${ENABLE_NOTIFICATIONS:-}"
 _env_ENABLE_BACKUP="${ENABLE_BACKUP:-}"
+_env_AGENT_PROVIDER="${AGENT_PROVIDER:-}"
+
+# Agent provider registry (multi-provider epic, #312). Sourced AFTER the _env_*
+# capture above so the lib's source-time AGENT_PROVIDER default does not mask an
+# explicit value from the environment (capture-before-source convention). This
+# defines agent_build_command(), the command-construction seam build_claude_command
+# delegates to. Selection currently resolves to the Claude reference adapter.
+source "$SCRIPT_DIR/lib/agents/registry.sh" || { echo "FATAL: Failed to source lib/agents/registry.sh" >&2; exit 1; }
 
 # Now set defaults (only if not already set by environment)
 MAX_CALLS_PER_HOUR="${MAX_CALLS_PER_HOUR:-100}"
@@ -1269,78 +1277,17 @@ update_session_last_used() {
 # Global array for Claude command arguments (avoids shell injection)
 declare -a CLAUDE_CMD_ARGS=()
 
-# Build Claude CLI command with modern flags using array (shell-injection safe)
-# Populates global CLAUDE_CMD_ARGS array for direct execution
-# Uses -p flag with prompt content (Claude CLI does not have --prompt-file)
+# Build the agent CLI command with modern flags using an array (shell-injection
+# safe). Populates global CLAUDE_CMD_ARGS for direct execution.
+#
+# Multi-provider seam (#312): this is now a thin delegation wrapper around the
+# active provider adapter (agent_build_command, from lib/agents/registry.sh).
+# The signature, the CLAUDE_CMD_ARGS output interface, and the resulting argv
+# are unchanged — the Claude reference adapter reproduces the historical command
+# byte-for-byte. All downstream consumers (sandbox wrapping, LIVE_CMD_ARGS,
+# execution paths) read CLAUDE_CMD_ARGS exactly as before.
 build_claude_command() {
-    local prompt_file=$1
-    local loop_context=$2
-    local session_id=$3
-
-    # Reset global array
-    # Note: We do NOT use --dangerously-skip-permissions here. Tool permissions
-    # are controlled via --allowedTools from CLAUDE_ALLOWED_TOOLS in .ralphrc.
-    # This preserves the permission denial circuit breaker (Issue #101).
-    CLAUDE_CMD_ARGS=("$CLAUDE_CODE_CMD")
-
-    # Check if prompt file exists
-    if [[ ! -f "$prompt_file" ]]; then
-        log_status "ERROR" "Prompt file not found: $prompt_file"
-        return 1
-    fi
-
-    # Add model override (Issue #228)
-    if [[ -n "${CLAUDE_MODEL:-}" ]]; then
-        CLAUDE_CMD_ARGS+=("--model" "$CLAUDE_MODEL")
-    fi
-
-    # Add effort level override (Issue #228)
-    if [[ -n "${CLAUDE_EFFORT:-}" ]]; then
-        CLAUDE_CMD_ARGS+=("--effort" "$CLAUDE_EFFORT")
-    fi
-
-    # Add output format flag
-    if [[ "$CLAUDE_OUTPUT_FORMAT" == "json" ]]; then
-        CLAUDE_CMD_ARGS+=("--output-format" "json")
-    fi
-
-    # Add allowed tools (each tool as separate array element)
-    if [[ -n "$CLAUDE_ALLOWED_TOOLS" ]]; then
-        CLAUDE_CMD_ARGS+=("--allowedTools")
-        # Split by comma and add each tool
-        local IFS=','
-        read -ra tools_array <<< "$CLAUDE_ALLOWED_TOOLS"
-        for tool in "${tools_array[@]}"; do
-            # Trim whitespace
-            tool=$(echo "$tool" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-            if [[ -n "$tool" ]]; then
-                CLAUDE_CMD_ARGS+=("$tool")
-            fi
-        done
-    fi
-
-    # Add session continuity flag
-    # IMPORTANT: Use --resume with explicit session ID instead of --continue
-    # --continue resumes the "most recent session in current directory" which
-    # can hijack active Claude Code sessions. --resume with a specific session ID
-    # ensures we only resume Ralph's own sessions. (Issue #151)
-    if [[ "$CLAUDE_USE_CONTINUE" == "true" && -n "$session_id" ]]; then
-        CLAUDE_CMD_ARGS+=("--resume" "$session_id")
-    fi
-    # If no session_id, start fresh - Claude will generate a new session ID
-    # which we'll capture via save_claude_session() for future loops
-
-    # Add loop context as system prompt (no escaping needed - array handles it)
-    if [[ -n "$loop_context" ]]; then
-        CLAUDE_CMD_ARGS+=("--append-system-prompt" "$loop_context")
-    fi
-
-    # Read prompt file content and use -p flag
-    # Note: Claude CLI uses -p for prompts, not --prompt-file (which doesn't exist)
-    # Array-based approach maintains shell injection safety
-    local prompt_content
-    prompt_content=$(cat "$prompt_file")
-    CLAUDE_CMD_ARGS+=("-p" "$prompt_content")
+    agent_build_command "$@"
 }
 
 # create_backup - Create a git backup branch before a loop iteration (Issue #23)
