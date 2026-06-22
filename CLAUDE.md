@@ -106,6 +106,7 @@ The system uses a modular architecture with reusable components in the `lib/` di
       - **Output normalization** (#313): owns the Claude-specific parsing (`detect_output_format`, `parse_json_response`, `_file_size_bytes`, `RALPH_JSONL_SAFE_MAX_BYTES`) plus contract wrappers `agent_claude_detect_format()` / `agent_claude_normalize_response()`. Produces Ralph's normalized analysis struct in `.ralph/.json_parse_result`.
     - `build_claude_command()` in `ralph_loop.sh` is a thin wrapper around `agent_build_command "$@"`; `CLAUDE_CMD_ARGS` and downstream consumers are unchanged.
     - `lib/response_analyzer.sh` sources `claude.sh` directly (not the registry, to avoid `AGENT_PROVIDER` source-time side effects) and `analyze_response()` routes format detection + JSON parsing through the `agent_claude_*` wrappers — provider-agnostic with zero behavior change. Provider selection (config/CLI/tmux) lands in #314.
+    - **Adapter test harness (#316, MP.5):** `tests/helpers/adapter_harness.bash` provides adapter-agnostic scaffolding (`harness_assert_argv`, `harness_normalize` + `harness_assert_field`, `harness_assert_capabilities_wellformed`, `harness_make_mock_cli`) so every provider PR validates the same three checks (command-build argv, fixture→struct normalization, capability record) cheaply. Raw provider-output fixtures live in `tests/fixtures/adapters/`; `tests/unit/test_adapter_harness.bats` drives both the Claude adapter and a mock adapter through it.
 
 ## Key Commands
 
