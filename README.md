@@ -422,6 +422,29 @@ CB_NO_PROGRESS_THRESHOLD=3
 CB_SAME_ERROR_THRESHOLD=5
 ```
 
+### Multi-Provider Support (experimental)
+
+Ralph drives an agent CLI through a pluggable adapter seam. Claude Code is the
+default and reference provider; **Codex** (`codex exec`) is the pilot non-Claude
+provider. Select one with precedence **env > `--provider` > `.ralphrc`**:
+
+```bash
+ralph --provider codex          # one-off
+AGENT_PROVIDER=codex ralph       # environment (highest precedence)
+AGENT_PROVIDER="codex"           # .ralphrc (lowest precedence)
+```
+
+`ralph --help` lists registered providers; an unknown provider exits with guidance.
+
+| Provider | Status | Token limiting | Permission-denial CB (#101) | API-limit detection (#100/#183) | Session resume | Exit via `RALPH_STATUS` |
+|---|---|---|---|---|---|---|
+| `claude` | reference/default | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `codex`  | pilot | ✅ | ❌ (sandbox/approval) | ❌ | ✅ | ✅ |
+
+Unsupported features degrade gracefully (no-op + one-time warning); exit detection
+via `RALPH_STATUS` is provider-independent. See
+[docs/providers/CODEX.md](docs/providers/CODEX.md) for the Codex adapter details.
+
 ### Rate Limiting & Circuit Breaker
 
 Ralph includes intelligent rate limiting and circuit breaker functionality:

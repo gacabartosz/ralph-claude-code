@@ -705,8 +705,9 @@ PROJECT_TYPE="${project_type}"
 CLAUDE_CODE_CMD="${claude_cmd}"
 
 # Agent provider (multi-provider epic, #314)
-# Selects which agent CLI adapter Ralph drives. Default: claude.
+# Selects which agent CLI adapter Ralph drives. Options: claude (default), codex.
 # Precedence: AGENT_PROVIDER env var > --provider flag > this file.
+# Codex (pilot) needs the codex CLI on PATH; see docs/providers/CODEX.md.
 AGENT_PROVIDER="claude"
 
 # Loop settings
