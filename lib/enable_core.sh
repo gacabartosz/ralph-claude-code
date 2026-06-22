@@ -706,8 +706,8 @@ CLAUDE_CODE_CMD="${claude_cmd}"
 
 # Agent provider (multi-provider epic, #314)
 # Selects which agent CLI adapter Ralph drives. Options: claude (default), codex,
-# gemini, opencode. Precedence: AGENT_PROVIDER env var > --provider flag > this file.
-# Non-Claude providers need their CLI on PATH; see docs/providers/{CODEX,GEMINI,OPENCODE}.md.
+# gemini, opencode, droid. Precedence: AGENT_PROVIDER env var > --provider flag > this file.
+# Non-Claude providers need their CLI on PATH; see docs/providers/{CODEX,GEMINI,OPENCODE,DROID}.md.
 AGENT_PROVIDER="claude"
 
 # Loop settings

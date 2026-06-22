@@ -425,12 +425,12 @@ CB_SAME_ERROR_THRESHOLD=5
 ### Multi-Provider Support (experimental)
 
 Ralph drives an agent CLI through a pluggable adapter seam. Claude Code is the
-default and reference provider; **Codex** (`codex exec`), **Gemini** (`gemini`)
-and **OpenCode** (`opencode run`) are non-Claude provider adapters. Select one
-with precedence **env > `--provider` > `.ralphrc`**:
+default and reference provider; **Codex** (`codex exec`), **Gemini** (`gemini`),
+**OpenCode** (`opencode run`) and **Droid** (`droid exec`, Factory) are non-Claude
+provider adapters. Select one with precedence **env > `--provider` > `.ralphrc`**:
 
 ```bash
-ralph --provider codex          # one-off (or: gemini, opencode)
+ralph --provider codex          # one-off (or: gemini, opencode, droid)
 AGENT_PROVIDER=codex ralph       # environment (highest precedence)
 AGENT_PROVIDER="codex"           # .ralphrc (lowest precedence)
 ```
@@ -443,12 +443,14 @@ AGENT_PROVIDER="codex"           # .ralphrc (lowest precedence)
 | `codex`    | pilot | ✅ | ❌ (sandbox/approval) | ❌ | ✅ | ✅ |
 | `gemini`   | adapter | ✅ | ❌ (approval-mode) | ❌ | ✅ (pre-assigned) | ✅ |
 | `opencode` | adapter | ✅ | ❌ (auto-approve) | ❌ | ✅ (`-s <id>`) | ✅ |
+| `droid`    | adapter | ✅ | ❌ (`--auto`) | ❌ | ✅ (`--session-id`) | ✅ |
 
 Unsupported features degrade gracefully (no-op + one-time warning); exit detection
 via `RALPH_STATUS` is provider-independent. See
 [docs/providers/CODEX.md](docs/providers/CODEX.md),
-[docs/providers/GEMINI.md](docs/providers/GEMINI.md) and
-[docs/providers/OPENCODE.md](docs/providers/OPENCODE.md) for adapter details.
+[docs/providers/GEMINI.md](docs/providers/GEMINI.md),
+[docs/providers/OPENCODE.md](docs/providers/OPENCODE.md) and
+[docs/providers/DROID.md](docs/providers/DROID.md) for adapter details.
 
 ### Rate Limiting & Circuit Breaker
 
