@@ -4,13 +4,14 @@
 # Resolves the active agent provider and dispatches command construction to its
 # adapter. This is the abstraction seam for the multi-provider epic.
 #
-# Phase 1 (#312): Claude is the only registered provider and the default. The
-# selection plumbing (AGENT_PROVIDER config + CLI flag) is wired in #314 — for
-# now selection resolves to claude with zero behavior change.
+# Claude is the reference adapter and default; Codex is the pilot non-Claude
+# provider (#317). Selection (AGENT_PROVIDER env/CLI/.ralphrc) is wired in #314.
 #
-# Adapter contract: each provider lib defines agent_<name>_build_command, which
-# populates the shared CLAUDE_CMD_ARGS array from the prompt file, loop context
-# and session id. The registry routes agent_build_command to the active one.
+# Adapter contract: each provider lib defines agent_<name>_{build_command,
+# detect_format,normalize_response,has_capability} + AGENT_<NAME>_CAPABILITIES.
+# build populates the shared CLAUDE_CMD_ARGS array; normalize writes Ralph's
+# internal analysis struct. The registry routes the agent_* dispatchers to the
+# active provider's functions.
 
 # Directory this lib lives in (used to source sibling adapters relative to it).
 AGENTS_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -22,7 +23,7 @@ AGENT_PROVIDER="${AGENT_PROVIDER:-claude}"
 
 # Space-separated list of registered providers (adapters available in this lib).
 # Provider selection (#314) validates AGENT_PROVIDER against this list.
-AGENT_REGISTERED_PROVIDERS="claude"
+AGENT_REGISTERED_PROVIDERS="claude codex"
 
 # agent_provider_is_registered - return 0 if $1 is a registered provider.
 agent_provider_is_registered() {
@@ -33,9 +34,11 @@ agent_provider_is_registered() {
     return 1
 }
 
-# Source the reference adapter.
+# Source the registered adapters.
 # shellcheck source=lib/agents/claude.sh
 source "$AGENTS_LIB_DIR/claude.sh"
+# shellcheck source=lib/agents/codex.sh
+source "$AGENTS_LIB_DIR/codex.sh"
 
 # agent_build_command - dispatch command construction to the active adapter.
 #
@@ -46,6 +49,9 @@ agent_build_command() {
     case "$AGENT_PROVIDER" in
         claude)
             agent_claude_build_command "$@"
+            ;;
+        codex)
+            agent_codex_build_command "$@"
             ;;
         *)
             if declare -f log_status >/dev/null 2>&1; then
@@ -68,6 +74,9 @@ agent_detect_format() {
         claude)
             agent_claude_detect_format "$@"
             ;;
+        codex)
+            agent_codex_detect_format "$@"
+            ;;
         *)
             if declare -f log_status >/dev/null 2>&1; then
                 log_status "ERROR" "Unknown AGENT_PROVIDER: '$AGENT_PROVIDER'"
@@ -89,6 +98,9 @@ agent_normalize_response() {
     case "$AGENT_PROVIDER" in
         claude)
             agent_claude_normalize_response "$@"
+            ;;
+        codex)
+            agent_codex_normalize_response "$@"
             ;;
         *)
             if declare -f log_status >/dev/null 2>&1; then
@@ -117,6 +129,9 @@ agent_has_capability() {
     case "$AGENT_PROVIDER" in
         claude)
             agent_claude_has_capability "$@"
+            ;;
+        codex)
+            agent_codex_has_capability "$@"
             ;;
         *)
             return 1
