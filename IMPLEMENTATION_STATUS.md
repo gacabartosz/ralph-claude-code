@@ -1,8 +1,14 @@
 # Implementation Status Summary
 
-**Last Updated**: 2026-01-10
-**Version**: v0.9.8
-**Overall Status**: Phase 1 in progress (core complete, documentation remaining)
+**Last Updated**: 2026-06-22
+**Version**: v0.11.5
+**Overall Status**: Original roadmap (Phases 1–6) complete and merged. Active work has moved to the
+multi-provider epic (`#312`–`#327`) plus standalone enhancements.
+
+> **Reconciled to reality (2026-06-22).** This document was previously stuck at v0.9.8 / "Phase 1 in
+> progress" / 276 tests. The repository is in fact at **v0.11.5** with **691 tests** and every issue in
+> the original 6-phase roadmap closed upstream. The sections below reflect the actual code and the
+> current open issues.
 
 ---
 
@@ -10,240 +16,148 @@
 
 ### Test Coverage
 
-| Metric | Current | Target |
-|--------|---------|--------|
-| **Total Tests** | 276 | 300+ |
-| **Pass Rate** | 100% | 100% |
-| **Unit Tests** | 154 | 160+ |
-| **Integration Tests** | 122 | 140+ |
-| **E2E Tests** | 0 | 10+ |
+| Metric | Current | Notes |
+|--------|---------|-------|
+| **Total Tests** | 691 | Counted from `@test` declarations across all bats files |
+| **Unit Tests** | 523 | `tests/unit/` (22 files) |
+| **Integration Tests** | 168 | `tests/integration/` (7 files) |
+| **E2E Tests** | 0 | Planned with the v2 web UI (Playwright) |
+| **Pass Rate (Linux CI)** | 100% | GitHub Actions is the enforced quality gate |
 
-### Test Files (11 files, 276 tests)
+> **Host caveat (macOS):** On a macOS dev host (bash 3.2.57 + BSD coreutils) 4 tests fail and 8 do not
+> run, all for host-specific reasons — BSD `stat`, `/usr/bin/osascript` present, GNU-only `head -n -1`,
+> and bash-3.2 `source <(process-substitution)`. These are **not** code regressions; the Linux CI gate
+> stays 100% green. A "make the bats suite macOS-portable" task is tracked in `.ralph/fix_plan.md`.
 
-| File | Tests | Status |
-|------|-------|--------|
-| test_cli_parsing.bats | 27 | ✅ Complete |
-| test_cli_modern.bats | 29 | ✅ Complete |
-| test_json_parsing.bats | 36 | ✅ Complete |
-| test_session_continuity.bats | 26 | ✅ Complete |
-| test_exit_detection.bats | 20 | ✅ Complete |
-| test_rate_limiting.bats | 15 | ✅ Complete |
-| test_loop_execution.bats | 20 | ✅ Complete |
-| test_edge_cases.bats | 20 | ✅ Complete |
-| test_installation.bats | 14 | ✅ Complete |
-| test_project_setup.bats | 36 | ✅ Complete |
-| test_prd_import.bats | 33 | ✅ Complete |
+### Test Files (29 files, 691 tests)
+
+**Unit (`tests/unit/`, 523):**
+
+| File | Tests |
+|------|-------|
+| test_cli_modern.bats | 129 |
+| test_json_parsing.bats | 56 |
+| test_exit_detection.bats | 54 |
+| test_enable_core.bats | 38 |
+| test_cli_parsing.bats | 35 |
+| test_session_continuity.bats | 26 |
+| test_rate_limiting.bats | 25 |
+| test_ralph_enable.bats | 24 |
+| test_task_sources.bats | 23 |
+| test_circuit_breaker_recovery.bats | 22 |
+| test_wizard_utils.bats | 20 |
+| test_file_protection.bats | 15 |
+| test_integrity_check.bats | 10 |
+| test_backup_rollback.bats | 8 |
+| test_jsonl_guard.bats | 6 |
+| test_status_updates.bats | 6 |
+| test_log_rotation.bats | 5 |
+| test_notifications.bats | 5 |
+| test_safe_count.bats | 5 |
+| test_dry_run.bats | 4 |
+| test_metrics_tracking.bats | 4 |
+| test_session_id_corruption.bats | 3 |
+
+**Integration (`tests/integration/`, 168):**
+
+| File | Tests |
+|------|-------|
+| test_project_setup.bats | 50 |
+| test_prd_import.bats | 33 |
+| test_edge_cases.bats | 25 |
+| test_loop_execution.bats | 20 |
+| test_tmux_integration.bats | 17 |
+| test_installation.bats | 15 |
+| test_monitor.bats | 8 |
 
 ### Code Quality
 
-- **CI/CD**: ✅ GitHub Actions operational
-- **Response Analyzer**: ✅ lib/response_analyzer.sh (JSON parsing, session management)
-- **Circuit Breaker**: ✅ lib/circuit_breaker.sh (three-state pattern)
-- **Date Utilities**: ✅ lib/date_utils.sh (cross-platform)
-- **Test Helpers**: ✅ Complete infrastructure
+- **CI/CD**: ✅ GitHub Actions operational (`test.yml`, `claude.yml`, `claude-code-review.yml`)
+- **Response Analyzer**: ✅ `lib/response_analyzer.sh` (JSON parsing, session management, question detection)
+- **Circuit Breaker**: ✅ `lib/circuit_breaker.sh` (three-state + cooldown/auto-reset recovery)
+- **Date / Timeout / Log utilities**: ✅ `lib/date_utils.sh`, `lib/timeout_utils.sh`, `lib/log_utils.sh`
+- **Enable tooling**: ✅ `lib/enable_core.sh`, `lib/wizard_utils.sh`, `lib/task_sources.sh`
+- **File protection**: ✅ `lib/file_protection.sh` (integrity validation every loop)
 
 ---
 
-## Phase Status
+## Phase Status — Original Roadmap (Phases 1–6): ✅ COMPLETE
 
-### Phase 1: CLI Modernization (80% Complete)
+All issues from the original six-phase plan are closed upstream and merged. Verified by `gh issue view`
+and by grepping the implementation.
 
-**Completed**:
-- [x] #28 - Update CLI commands with modern options
-- [x] #29 - Enhance response parsing for JSON output
-- [x] #30 - Add session management for continuity
-- [x] #31 - Update ralph-import with CLI enhancements
-- [x] #48 - Shell escaping security fix
-- [x] #50 - Input validation for --allowed-tools
-- [x] #10 - CLI parsing tests (27 tests)
-- [x] #11 - Installation tests (14 tests)
-- [x] #12 - Project setup tests (36 tests)
-- [x] #13 - PRD import tests (33 tests)
-- [x] #25 - Create CONTRIBUTING.md guide (P3)
-- [x] #24 - Create TESTING.md documentation (P3)
-- [x] #26 - Update README with testing instructions (P3)
-- [x] #27 - Add badges to README (P3)
+### Phase 1: CLI Modernization — ✅ Complete
+- [x] #28 Modern CLI commands · #29 JSON response parsing · #30 session management · #31 ralph-import CLI
+- [x] #48 shell-escaping security fix · #50 `--allowed-tools` validation
+- [x] #10/#11/#12/#13 CLI/installation/project-setup/PRD-import tests
+- [x] #24/#25/#26/#27 TESTING.md, CONTRIBUTING.md, README testing instructions, badges
+- [x] #51 Session expiration for `.claude_session_id` (Phase 1.5)
 
-**Remaining**:
-- [ ] #51 - Session expiration for .claude_session_id (P2)
+### Phase 2: Agent SDK Integration — ✅ Complete (closed)
+- [x] #32 SDK proof of concept · #33 custom tools · #34 hybrid CLI/SDK architecture · #35 migration docs
 
-### Phase 2: Agent SDK Integration (0% Complete)
+### Phase 3: Configuration & Infrastructure — ✅ Complete
+- [x] #18 log rotation (`lib/log_utils.sh`, `rotate_logs`) · #19 dry-run mode · #20 `.ralphrc` config support
+- [x] #21 metrics & analytics (`track_metrics`, `ralph-stats`) · #22 notifications (`send_notification`)
+- [x] #23 backup & rollback (`create_backup`) · #223 token-based rate limiting (`MAX_TOKENS_PER_HOUR`)
+- [x] #228 `CLAUDE_MODEL`/`CLAUDE_EFFORT` overrides · #211 `RALPH_SHELL_INIT_FILE`
 
-- [ ] #32 - Create Agent SDK proof of concept (P2)
-- [ ] #33 - Define custom tools for Agent SDK (P2)
-- [ ] #34 - Implement hybrid CLI/SDK architecture (P2)
-- [ ] #35 - Document SDK migration strategy (P2)
+### Phase 4: Validation Testing — ✅ Complete
+- [x] #14 tmux integration tests (17) · #15 monitor dashboard tests (8) · #16 status update tests (6)
 
-### Phase 3: Configuration & Infrastructure (0% Complete)
+### Phase 5: GitHub Issue Integration — ✅ Complete (closed)
+- [x] #69 import plan from GitHub issue · #71 filter/select by metadata · #72 batch/queue · #73 lifecycle
+      (`lib/task_sources.sh`)
 
-- [ ] #36 - Add JSON configuration file support (P2)
-- [ ] #37 - Update installation for SDK support (P2)
-- [ ] #18 - Implement log rotation feature (P2)
-- [ ] #19 - Implement dry-run mode feature (P2)
-- [ ] #20 - Implement config file support (.ralphrc) (P2)
-- [ ] #38 - Create CLI and SDK documentation (P3)
-- [ ] #21 - Implement metrics and analytics (P3)
-- [ ] #22 - Implement notification system (P3)
-- [ ] #23 - Implement backup and rollback system (P3)
+### Phase 6: Sandbox Execution — ✅ Complete (closed)
+- [x] #74 local Docker sandbox · #75 E2B cloud sandbox · #78 generic sandbox interface
+      (`SANDBOX_PROVIDER`/`SANDBOX_DOCKER_*`/E2B hooks in `.ralphrc` + `ralph_loop.sh`)
 
-### Phase 4: Validation Testing (0% Complete)
-
-- [ ] #14 - Implement tmux integration tests (P2)
-- [ ] #15 - Implement monitor dashboard tests (P2)
-- [ ] #16 - Implement status update tests (P2)
-- [ ] #39 - Implement CLI enhancement tests (P3)
-- [ ] #40 - Implement SDK integration tests (P3)
-- [ ] #41 - Implement backward compatibility tests (P3)
-- [ ] #17 - Implement E2E full loop tests (P3)
-
-### Phase 5: GitHub Issue Integration (0% Complete)
-
-- [ ] #69 - Allow plan import from GitHub Issue (P4)
-- [ ] #70 - Assess issue completeness and generate implementation plan (P4)
-- [ ] #71 - Filter and select GitHub issues by metadata (P4)
-- [ ] #72 - Batch processing and issue queue management (P4)
-- [ ] #73 - Issue lifecycle management and completion workflows (P4)
-
-### Phase 6: Sandbox Execution Environments (0% Complete)
-
-- [ ] #49 - Sandbox execution environments (umbrella) (P4)
-- [ ] #74 - Local Docker Sandbox Execution (P4)
-- [ ] #75 - E2B Cloud Sandbox Integration (P4)
-- [ ] #76 - Sandbox File Synchronization (P4)
-- [ ] #77 - Sandbox Security and Resource Policies (P4)
-- [ ] #78 - Generic Sandbox Interface and Plugin Architecture (P4)
-- [ ] #79 - Daytona Sandbox Integration (P4)
-- [ ] #80 - Cloudflare Sandbox Integration (P4)
+### Hardening / community bug fixes (v0.10 → v0.11.5)
+- [x] #134/#199 `is_error:true` detection · #208 remove `set -e` · #190 question detection + version check
+- [x] #194 stale-exit-signal prevention · #198 productive-timeout detection · #100 Extra Usage quota
+- [x] #224 suppress heuristic exit in JSON mode · #216/#188 live/monitor fixes · #101 permission-denial
+- [x] #250 truncated-JSONL guard · #254 `--resume` session corruption · #255/#251/#260 `_safe_count` · #256 post-completion crash
 
 ---
 
-## Recent Completions
+## Active Roadmap — Multi-Provider Epic (`#312`–`#327`)
 
-### v0.9.8 (2026-01-10)
-- Modern CLI for PRD import with JSON output
-- 11 new tests for modern CLI features
-- Test count: 265 → 276
+The current development thrust is making Ralph provider-agnostic (today it is Claude-only). **Not yet
+started** in code: `lib/agents/` does not exist and `AGENT_PROVIDER` is unimplemented.
 
-### v0.9.7
-- Session lifecycle management with auto-reset triggers
-- 26 new tests for session continuity
-- Test count: 239 → 265
+| Issue | Phase | Title |
+|-------|-------|-------|
+| #312 | P1.1 | Command-construction seam: `lib/agents/` registry + Claude reference adapter |
+| #313 | P1.2 | Output-normalization seam: internal analysis struct + Claude parser |
+| #314 | P1.3 | Provider selection: `AGENT_PROVIDER` config + CLI + tmux forwarding |
+| #315 | P2.1 | Capabilities matrix + graceful feature degradation |
+| #316 | P2.2 | Generic adapter test harness (mock CLIs) |
+| #317 | P3.1 | Codex adapter (pilot) |
+| #318 | P4.1 | Gemini adapter |
+| #319 | P4.2 | OpenCode adapter |
+| #320 | P4.3 | Droid adapter |
+| #321 | P4.4 | Kilocode adapter |
+| #322 | P4.5 | Copilot adapter (text-only, degraded) |
+| #323 | P5.1 | Sandbox provider-awareness (docker/e2b wrap any provider) |
+| #324 | P5.2 | Monitor + `status.json` provider surfacing |
+| #325 | P5.3 | Docs sweep: provider matrix, setup guides, CLAUDE.md, templates |
+| #327 | P8.1 | Recompile triage-incoming-issues workflow lock (CI/infra) |
 
-### v0.9.6
-- JSON output and session management
-- 16 new tests for Claude CLI format
-- Test count: 223 → 239
-
-### v0.9.5
-- PRD import tests (22 tests)
-- Test count: 201 → 223
-
-### v0.9.4
-- Project setup tests (36 tests)
-- Test count: 165 → 201
-
-### v0.9.3
-- Installation tests (14 tests)
-- Test count: 151 → 165
-
-### v0.9.2
-- Prompt file fix (-p flag)
-- 6 new tests for build_claude_command
-- Test count: 145 → 151
-
-### v0.9.1
-- Modern CLI commands (Phase 1.1)
-- 70 new tests (JSON, CLI modern, CLI parsing)
-- CI/CD pipeline operational
-
-### v0.9.0
-- Circuit breaker enhancements
-- Two-stage error filtering
-- Multi-line error matching
-
----
-
-## Closed Issues
-
-<details>
-<summary>Click to expand (20 closed issues)</summary>
+### Standalone Enhancements (open)
 
 | Issue | Title |
 |-------|-------|
-| #1 | Cannot find file ~/.ralph/lib/response_analyzer.sh |
-| #2 | is_error: false triggers "error" circuit breaker incorrectly |
-| #5 | Bug: date: illegal option -- d on macOS |
-| #7 | Review codebase for updated Anthropic CLI |
-| #10 | Implement CLI parsing tests |
-| #11 | Implement installation tests |
-| #12 | Implement project setup tests |
-| #13 | Implement PRD import tests |
-| #28 | Phase 1.1: Update CLI commands with modern options |
-| #29 | Phase 1.2: Enhance response parsing for JSON output |
-| #30 | Phase 1.3: Add session management for continuity |
-| #31 | Phase 1.4: Update ralph-import with CLI enhancements |
-| #42 | Windows: Git Bash windows spawn when running Ralph loop |
-| #48 | MAJOR-01: Enhance shell escaping to prevent command injection |
-| #50 | MAJOR-02: Add input validation for --allowed-tools flag |
-| #55 | --prompt-file flag does not exist in Claude Code CLI |
-| #56 | Project featured in Awesome Claude Code! |
-| #63 | Fix IMPLEMENTATION_PLAN |
+| #213 | `KEEP_MONITOR_AFTER_EXIT` — preserve tmux session after loop exits |
+| #163 | Monorepo-aware features for multi-service architectures |
+| #157 | Nix flake support for reproducible installation |
+| #156 | Windows support (PowerShell/CMD wrappers, Windows Terminal monitoring) |
+| #138 | Automate version and test-count badges via GitHub Actions |
+| #110 | Token cost tracking |
+| #102 | Plan-limit exhaustion handling |
 
-</details>
-
----
-
-## Open Issues by Priority
-
-### P2 (Medium - Important)
-| Issue | Phase | Title |
-|-------|-------|-------|
-| #51 | 1.5 | Session expiration for .claude_session_id |
-| #32 | 2.1 | Create Agent SDK proof of concept |
-| #33 | 2.2 | Define custom tools for Agent SDK |
-| #34 | 2.3 | Implement hybrid CLI/SDK architecture |
-| #35 | 2.4 | Document SDK migration strategy |
-| #36 | 3.1 | Add JSON configuration file support |
-| #37 | 3.2 | Update installation for SDK support |
-| #18 | 3.4 | Implement log rotation feature |
-| #19 | 3.5 | Implement dry-run mode feature |
-| #20 | 3.6 | Implement config file support (.ralphrc) |
-| #14 | 4.4 | Implement tmux integration tests |
-| #15 | 4.5 | Implement monitor dashboard tests |
-| #16 | 4.6 | Implement status update tests |
-
-### P3 (Low - Nice to have)
-| Issue | Phase | Title |
-|-------|-------|-------|
-| #24 | 1.9 | Create TESTING.md documentation |
-| #25 | 1.10 | Create CONTRIBUTING.md guide |
-| #26 | 1.11 | Update README with testing instructions |
-| #27 | 1.12 | Add badges to README |
-| #38 | 3.3 | Create CLI and SDK documentation |
-| #21 | 3.7 | Implement metrics and analytics |
-| #22 | 3.8 | Implement notification system |
-| #23 | 3.9 | Implement backup and rollback system |
-| #39 | 4.1 | Implement CLI enhancement tests |
-| #40 | 4.2 | Implement SDK integration tests |
-| #41 | 4.3 | Implement backward compatibility tests |
-| #17 | 4.7 | Implement E2E full loop tests |
-
-### P4 (Enhancements - New functionality)
-| Issue | Phase | Title |
-|-------|-------|-------|
-| #69 | 5.1 | Allow plan import from GitHub Issue |
-| #70 | 5.2 | Assess issue completeness and generate plan |
-| #71 | 5.3 | Filter and select GitHub issues by metadata |
-| #72 | 5.4 | Batch processing and issue queue management |
-| #73 | 5.5 | Issue lifecycle management |
-| #49 | 6.0 | Sandbox execution environments (umbrella) |
-| #74 | 6.1 | Local Docker Sandbox Execution |
-| #75 | 6.2 | E2B Cloud Sandbox Integration |
-| #76 | 6.3 | Sandbox File Synchronization |
-| #77 | 6.4 | Sandbox Security and Resource Policies |
-| #78 | 6.5 | Generic Sandbox Interface |
-| #79 | 6.6 | Daytona Sandbox Integration |
-| #80 | 6.7 | Cloudflare Sandbox Integration |
+### Internal (dogfood) follow-ups
+- Make the bats suite macOS-portable (see host caveat above) — tracked in `.ralph/fix_plan.md`.
 
 ---
 
@@ -251,15 +165,14 @@
 
 | Category | Count |
 |----------|-------|
-| Total Open Issues | 36 |
-| P2 Issues | 13 |
-| P3 Issues | 12 |
-| P4 Issues | 13 |
-| Closed Issues | 20 |
-| Total Tests | 276 |
-| Test Pass Rate | 100% |
+| Version | v0.11.5 |
+| Total Tests | 691 (523 unit + 168 integration) |
+| Test Files | 29 |
+| Linux CI Pass Rate | 100% |
+| Original roadmap phases complete | 6 / 6 |
+| Open multi-provider issues | 15 (`#312`–`#327`) |
+| Open standalone enhancements | 7 |
 
----
-
-**Status**: ✅ Solid foundation with comprehensive test coverage
-**Next Steps**: Complete Phase 1 documentation, then Phase 3 core features (log rotation, dry-run, config)
+**Status**: ✅ Mature, well-tested loop runner; original roadmap fully delivered.
+**Next Steps**: Begin the multi-provider epic at the seam — `#312` (`lib/agents/` registry + Claude
+reference adapter), which unblocks every downstream adapter.
