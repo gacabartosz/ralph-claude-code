@@ -570,8 +570,12 @@ can_make_call() {
         return 1  # Cannot make call — invocation limit reached
     fi
 
-    # Check token limit only when configured (MAX_TOKENS_PER_HOUR > 0)
-    if [[ "${MAX_TOKENS_PER_HOUR:-0}" -gt 0 ]] 2>/dev/null; then
+    # Check token limit only when configured (MAX_TOKENS_PER_HOUR > 0) AND the
+    # active provider reports token usage (#315). Without supports_token_usage the
+    # token counter never advances, so enforcing a budget would wrongly block (or
+    # silently never trigger); the limit no-ops with a one-time WARN instead.
+    if [[ "${MAX_TOKENS_PER_HOUR:-0}" -gt 0 ]] 2>/dev/null && \
+       agent_capability_enabled "supports_token_usage" "MAX_TOKENS_PER_HOUR token limiting"; then
         local tokens_used=0
         tokens_used=$(cat "$TOKEN_COUNT_FILE" 2>/dev/null || echo "0")
         if [[ $tokens_used -ge $MAX_TOKENS_PER_HOUR ]]; then
@@ -689,8 +693,11 @@ should_exit_gracefully() {
 
     # 0. Permission denials (highest priority - Issue #101)
     # When Claude Code is denied permission to run commands, halt immediately
-    # to allow user to update .ralphrc ALLOWED_TOOLS configuration
-    if [[ -f "$RESPONSE_ANALYSIS_FILE" ]]; then
+    # to allow user to update .ralphrc ALLOWED_TOOLS configuration.
+    # Gated on supports_permission_denials (#315): providers that don't surface
+    # permission denials skip this (one-time WARN) and rely on other signals.
+    if [[ -f "$RESPONSE_ANALYSIS_FILE" ]] && \
+       agent_capability_enabled "supports_permission_denials" "permission-denial circuit breaker (#101)"; then
         local has_permission_denials=$(jq -r '.analysis.has_permission_denials // false' "$RESPONSE_ANALYSIS_FILE" 2>/dev/null || echo "false")
         if [[ "$has_permission_denials" == "true" ]]; then
             local denied_count=$(jq -r '.analysis.permission_denial_count // 0' "$RESPONSE_ANALYSIS_FILE" 2>/dev/null || echo "0")
@@ -1948,30 +1955,35 @@ EOF
             fi
         fi  # end timeout
 
-        # Layer 2: Structural JSON detection — check rate_limit_event for status:"rejected"
-        # This is the definitive signal from the Claude CLI
-        if grep -q '"rate_limit_event"' "$output_file" 2>/dev/null; then
-            local last_rate_event
-            last_rate_event=$(grep '"rate_limit_event"' "$output_file" | tail -1)
-            if echo "$last_rate_event" | grep -qE '"status"\s*:\s*"rejected"'; then
-                log_status "ERROR" "🚫 Claude API 5-hour usage limit reached"
-                return 2  # Real API limit
+        # API-limit detection (Layers 2-4). Gated on supports_api_limit_detection
+        # (#315): providers that don't surface Claude's rate-limit signals skip
+        # detection (one-time WARN) and fall through to the generic failure path.
+        if agent_capability_enabled "supports_api_limit_detection" "API-limit detection (#100/#183)"; then
+            # Layer 2: Structural JSON detection — check rate_limit_event for status:"rejected"
+            # This is the definitive signal from the Claude CLI
+            if grep -q '"rate_limit_event"' "$output_file" 2>/dev/null; then
+                local last_rate_event
+                last_rate_event=$(grep '"rate_limit_event"' "$output_file" | tail -1)
+                if echo "$last_rate_event" | grep -qE '"status"\s*:\s*"rejected"'; then
+                    log_status "ERROR" "🚫 Claude API 5-hour usage limit reached"
+                    return 2  # Real API limit
+                fi
             fi
-        fi
 
-        # Layer 3: Filtered text fallback — only check tail, excluding tool result lines
-        # Filters out type:user, tool_result, and tool_use_id lines which contain echoed file content
-        if tail -30 "$output_file" 2>/dev/null | grep -vE '"type"\s*:\s*"user"' | grep -v '"tool_result"' | grep -v '"tool_use_id"' | grep -qi "5.*hour.*limit\|limit.*reached.*try.*back\|usage.*limit.*reached"; then
-            log_status "ERROR" "🚫 Claude API 5-hour usage limit reached"
-            return 2  # API limit detected via text fallback
-        fi
+            # Layer 3: Filtered text fallback — only check tail, excluding tool result lines
+            # Filters out type:user, tool_result, and tool_use_id lines which contain echoed file content
+            if tail -30 "$output_file" 2>/dev/null | grep -vE '"type"\s*:\s*"user"' | grep -v '"tool_result"' | grep -v '"tool_use_id"' | grep -qi "5.*hour.*limit\|limit.*reached.*try.*back\|usage.*limit.*reached"; then
+                log_status "ERROR" "🚫 Claude API 5-hour usage limit reached"
+                return 2  # API limit detected via text fallback
+            fi
 
-        # Layer 4: Extra Usage quota detection (Issue #100)
-        # Claude Code "Extra Usage" mode uses a different error message:
-        # "You're out of extra usage · resets 9pm"
-        if tail -30 "$output_file" 2>/dev/null | grep -vE '"type"\s*:\s*"user"' | grep -v '"tool_result"' | grep -v '"tool_use_id"' | grep -qi "out of extra usage"; then
-            log_status "ERROR" "🚫 Claude Extra Usage quota exhausted"
-            return 2  # Extra Usage limit detected
+            # Layer 4: Extra Usage quota detection (Issue #100)
+            # Claude Code "Extra Usage" mode uses a different error message:
+            # "You're out of extra usage · resets 9pm"
+            if tail -30 "$output_file" 2>/dev/null | grep -vE '"type"\s*:\s*"user"' | grep -v '"tool_result"' | grep -v '"tool_use_id"' | grep -qi "out of extra usage"; then
+                log_status "ERROR" "🚫 Claude Extra Usage quota exhausted"
+                return 2  # Extra Usage limit detected
+            fi
         fi
 
         log_status "ERROR" "❌ Claude Code execution failed, check: $output_file"
@@ -2031,6 +2043,14 @@ main() {
         exit 1
     fi
     [[ "${VERBOSE_PROGRESS:-}" == "true" ]] && log_status "INFO" "Agent provider: $AGENT_PROVIDER"
+
+    # Gate session continuity on provider capability (#315). Providers without
+    # supports_session_resume cannot resume a prior session id, so disable
+    # continuity (one-time WARN) rather than passing an unsupported resume flag.
+    if [[ "$CLAUDE_USE_CONTINUE" == "true" ]] && \
+       ! agent_capability_enabled "supports_session_resume" "session continuity"; then
+        CLAUDE_USE_CONTINUE=false
+    fi
 
     # Source user shell init file if configured (e.g. ~/.zshrc for zsh environments)
     # This allows non-bash shells or non-standard setups to export PATH/env vars
