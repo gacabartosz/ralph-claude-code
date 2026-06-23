@@ -62,12 +62,18 @@ display_status() {
         # Active agent provider (#324). Older status.json files (and corrupted
         # JSON) lack the field, so fall back to the default provider, claude.
         local provider=$(echo "$status_data" | jq -r '.provider // "claude"' 2>/dev/null || echo "claude")
+        # Estimated spend this hour (#110). Missing/old/corrupt files -> 0.
+        local est_cost=$(echo "$status_data" | jq -r '.estimated_cost_usd // 0' 2>/dev/null || echo "0")
+        [[ "$est_cost" =~ ^[0-9.]+$ ]] || est_cost="0"
+        local est_cost_fmt
+        est_cost_fmt=$(awk -v c="$est_cost" 'BEGIN { printf "%.4f", c }' 2>/dev/null || echo "0.0000")
 
         echo -e "${CYAN}┌─ Current Status ────────────────────────────────────────────────────────┐${NC}"
         echo -e "${CYAN}│${NC} Loop Count:     ${WHITE}#$loop_count${NC}"
         echo -e "${CYAN}│${NC} Provider:       ${WHITE}$provider${NC}"
         echo -e "${CYAN}│${NC} Status:         ${GREEN}$status${NC}"
         echo -e "${CYAN}│${NC} API Calls:      $calls_made/$max_calls"
+        echo -e "${CYAN}│${NC} Est. Cost:      \$${est_cost_fmt}"
         echo -e "${CYAN}└─────────────────────────────────────────────────────────────────────────┘${NC}"
         echo
         

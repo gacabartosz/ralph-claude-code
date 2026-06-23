@@ -185,6 +185,57 @@ EOF
 }
 
 # ──────────────────────────────────────────────────────────────────────────────
+# Test 3c: estimated cost display (#110)
+# ──────────────────────────────────────────────────────────────────────────────
+
+@test "ralph_monitor.sh displays estimated cost from status.json" {
+    cat > .ralph/status.json << 'EOF'
+{
+    "loop_count": 1,
+    "provider": "claude",
+    "calls_made_this_hour": 0,
+    "max_calls_per_hour": 100,
+    "estimated_cost_usd": 0.067500,
+    "status": "running"
+}
+EOF
+
+    local output
+    output=$(monitor_output)
+
+    echo "$output" | grep -q "Est. Cost:" || {
+        echo "Expected 'Est. Cost:' label in output"
+        echo "Full output: $output"
+        return 1
+    }
+    echo "$output" | grep -q '\$0.0675' || {
+        echo "Expected '\$0.0675' cost value in output"
+        echo "Full output: $output"
+        return 1
+    }
+}
+
+@test "ralph_monitor.sh estimated cost falls back to \$0.0000 when field absent" {
+    cat > .ralph/status.json << 'EOF'
+{
+    "loop_count": 1,
+    "calls_made_this_hour": 0,
+    "max_calls_per_hour": 100,
+    "status": "running"
+}
+EOF
+
+    local output
+    output=$(monitor_output)
+
+    echo "$output" | grep -q '\$0.0000' || {
+        echo "Expected '\$0.0000' fallback cost in output"
+        echo "Full output: $output"
+        return 1
+    }
+}
+
+# ──────────────────────────────────────────────────────────────────────────────
 # Test 4: recent log entries
 # ──────────────────────────────────────────────────────────────────────────────
 
