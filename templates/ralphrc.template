@@ -114,6 +114,12 @@ CLAUDE_MIN_VERSION="2.0.76"
 # Enable verbose logging
 RALPH_VERBOSE=false
 
+# Keep tmux monitor panes alive after the loop exits (Issue #213)
+# false (default): the whole tmux session is torn down when the loop exits
+# true: monitor + live-log panes stay up for review (close with `tmux kill-session`)
+# CLI override: --keep-monitor
+KEEP_MONITOR_AFTER_EXIT=false
+
 # Custom prompt file (relative to .ralph/)
 # PROMPT_FILE="PROMPT.md"
 

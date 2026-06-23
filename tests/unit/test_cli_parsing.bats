@@ -364,6 +364,27 @@ EOF
 }
 
 # =============================================================================
+# KEEP_MONITOR_AFTER_EXIT FLAG TESTS (Issue #213)
+# =============================================================================
+
+@test "--keep-monitor flag is accepted (not an unknown option)" {
+    run bash "$RALPH_SCRIPT" --keep-monitor --help
+    assert_success
+    [[ "$output" != *"Unknown option"* ]]
+}
+
+@test "--help documents the --keep-monitor flag" {
+    run bash "$RALPH_SCRIPT" --help
+    assert_success
+    [[ "$output" == *"--keep-monitor"* ]]
+}
+
+@test "--keep-monitor combines with --monitor" {
+    run bash "$RALPH_SCRIPT" --monitor --keep-monitor --help
+    assert_success
+}
+
+# =============================================================================
 # MONITOR PARAMETER FORWARDING TESTS (Issue #120)
 # Tests that --monitor correctly forwards all CLI parameters to the inner loop
 # =============================================================================

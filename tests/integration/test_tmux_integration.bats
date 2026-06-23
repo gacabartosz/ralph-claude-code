@@ -132,7 +132,14 @@ setup_tmux_session() {
         ralph_cmd="$ralph_cmd --backup"
     fi
 
-    tmux send-keys -t "$session_name:${base_win}.0" "$ralph_cmd; tmux kill-session -t $session_name 2>/dev/null" Enter
+    # Mirror ralph_loop.sh: skip the kill chain when KEEP_MONITOR_AFTER_EXIT=true
+    # (Issue #213) so the monitor panes stay alive for post-run review.
+    if [[ "${KEEP_MONITOR_AFTER_EXIT:-false}" == "true" ]]; then
+        tmux send-keys -t "$session_name:${base_win}.0" \
+            "$ralph_cmd; echo; echo '[Ralph] Loop exited. Monitor panes kept alive (KEEP_MONITOR_AFTER_EXIT=true). Close with: tmux kill-session -t $session_name'" Enter
+    else
+        tmux send-keys -t "$session_name:${base_win}.0" "$ralph_cmd; tmux kill-session -t $session_name 2>/dev/null" Enter
+    fi
 
     # Focus on left pane (main ralph loop)
     tmux select-pane -t "$session_name:${base_win}.0"
@@ -457,4 +464,38 @@ assert_tmux_called_with() {
     local count
     count=$(grep -c "^tmux new-session" "$TMUX_CALL_LOG")
     [ "$count" -eq 2 ]
+}
+
+# ==============================================================================
+# TEST 18: default chains tmux kill-session after the loop (Issue #176)
+# ==============================================================================
+
+@test "setup_tmux_session chains kill-session by default (KEEP_MONITOR_AFTER_EXIT unset)" {
+    unset KEEP_MONITOR_AFTER_EXIT
+    run setup_tmux_session
+    [ "$status" -eq 0 ]
+
+    local pane0_line
+    pane0_line=$(grep -E "tmux send-keys -t .+\.0" "$TMUX_CALL_LOG" | head -1)
+    # The real teardown command ends with `kill-session ... 2>/dev/null`
+    [[ "$pane0_line" == *"kill-session"* && "$pane0_line" == *"2>/dev/null"* ]]
+    # And does NOT print the keep-alive hint
+    [[ "$pane0_line" != *"kept alive"* ]]
+}
+
+# ==============================================================================
+# TEST 19: KEEP_MONITOR_AFTER_EXIT=true skips the kill chain (Issue #213)
+# ==============================================================================
+
+@test "setup_tmux_session keeps panes alive when KEEP_MONITOR_AFTER_EXIT=true" {
+    export KEEP_MONITOR_AFTER_EXIT=true
+    run setup_tmux_session
+    [ "$status" -eq 0 ]
+
+    local pane0_line
+    pane0_line=$(grep -E "tmux send-keys -t .+\.0" "$TMUX_CALL_LOG" | head -1)
+    # Keep mode prints the hint and does NOT run the `2>/dev/null` kill teardown
+    [[ "$pane0_line" == *"Monitor panes kept alive"* ]]
+    [[ "$pane0_line" == *"KEEP_MONITOR_AFTER_EXIT=true"* ]]
+    [[ "$pane0_line" != *"2>/dev/null"* ]]
 }

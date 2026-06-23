@@ -259,6 +259,7 @@ CLAUDE_MODEL=""                       # Model override (e.g. claude-sonnet-4-6);
 CLAUDE_EFFORT=""                      # Effort level override (e.g. high, low); empty = CLI default (Issue #228)
 ENABLE_NOTIFICATIONS=false            # Desktop notifications (Issue #22); set true or use --notify / -n flag
 ENABLE_BACKUP=false                   # Automatic git backup branches (Issue #23); set true or use --backup / -b flag
+KEEP_MONITOR_AFTER_EXIT=false         # Keep tmux monitor panes alive after the loop exits (Issue #213); set true or use --keep-monitor
 AGENT_PROVIDER="claude"               # Agent adapter to drive (Issue #314); precedence env > --provider > .ralphrc
 ```
 

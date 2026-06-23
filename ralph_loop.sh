@@ -61,6 +61,7 @@ _env_CLAUDE_EFFORT="${CLAUDE_EFFORT:-}"
 _env_RALPH_SHELL_INIT_FILE="${RALPH_SHELL_INIT_FILE:-}"
 _env_ENABLE_NOTIFICATIONS="${ENABLE_NOTIFICATIONS:-}"
 _env_ENABLE_BACKUP="${ENABLE_BACKUP:-}"
+_env_KEEP_MONITOR_AFTER_EXIT="${KEEP_MONITOR_AFTER_EXIT:-}"
 # (_env_AGENT_PROVIDER is captured at the very top, before any lib is sourced.)
 
 # Agent provider registry (multi-provider epic, #312/#317). Idempotent re-source
@@ -91,6 +92,7 @@ RALPH_SHELL_INIT_FILE="${RALPH_SHELL_INIT_FILE:-}" # Shell init file to source b
 DRY_RUN="${DRY_RUN:-false}"                      # Simulate loop without making actual Claude API calls
 ENABLE_NOTIFICATIONS="${ENABLE_NOTIFICATIONS:-false}"  # Enable desktop notifications; set true or use --notify flag
 ENABLE_BACKUP="${ENABLE_BACKUP:-false}"               # Enable automatic git backups before each loop; set true or use --backup flag
+KEEP_MONITOR_AFTER_EXIT="${KEEP_MONITOR_AFTER_EXIT:-false}"  # Keep tmux monitor panes alive after the loop exits (Issue #213); set true or use --keep-monitor
 
 # Session management configuration (Phase 1.2)
 # Note: SESSION_EXPIRATION_SECONDS is defined in lib/response_analyzer.sh (86400 = 24 hours)
@@ -219,6 +221,7 @@ load_ralphrc() {
     [[ -n "$_env_RALPH_SHELL_INIT_FILE" ]] && RALPH_SHELL_INIT_FILE="$_env_RALPH_SHELL_INIT_FILE"
     [[ -n "$_env_ENABLE_NOTIFICATIONS" ]] && ENABLE_NOTIFICATIONS="$_env_ENABLE_NOTIFICATIONS"
     [[ -n "$_env_ENABLE_BACKUP" ]] && ENABLE_BACKUP="$_env_ENABLE_BACKUP"
+    [[ -n "$_env_KEEP_MONITOR_AFTER_EXIT" ]] && KEEP_MONITOR_AFTER_EXIT="$_env_KEEP_MONITOR_AFTER_EXIT"
 
     RALPHRC_LOADED=true
     return 0
@@ -407,12 +410,20 @@ setup_tmux_session() {
         ralph_cmd="$ralph_cmd --provider $_cli_AGENT_PROVIDER"
     fi
 
-    # Chain tmux kill-session after the loop command so the entire tmux
-    # session is torn down when the Ralph loop exits (graceful completion,
-    # circuit breaker, error, or manual interrupt). Without this, the
-    # tail -f and ralph_monitor.sh panes keep the session alive forever.
-    # Issue: https://github.com/frankbria/ralph-claude-code/issues/176
-    tmux send-keys -t "$session_name:${base_win}.0" "$ralph_cmd; tmux kill-session -t $session_name 2>/dev/null" Enter
+    # By default, chain tmux kill-session after the loop command so the entire
+    # tmux session is torn down when the Ralph loop exits (graceful completion,
+    # circuit breaker, error, or manual interrupt). Without this, the tail -f and
+    # ralph_monitor.sh panes keep the session alive forever (Issue #176).
+    #
+    # When KEEP_MONITOR_AFTER_EXIT=true (Issue #213), skip the kill chain so the
+    # monitor + live-log panes stay up for post-run review; the Ralph pane prints
+    # a hint instead. The user closes it manually with `tmux kill-session`.
+    if [[ "${KEEP_MONITOR_AFTER_EXIT:-false}" == "true" ]]; then
+        tmux send-keys -t "$session_name:${base_win}.0" \
+            "$ralph_cmd; echo; echo '[Ralph] Loop exited. Monitor panes kept alive (KEEP_MONITOR_AFTER_EXIT=true). Close with: tmux kill-session -t $session_name'" Enter
+    else
+        tmux send-keys -t "$session_name:${base_win}.0" "$ralph_cmd; tmux kill-session -t $session_name 2>/dev/null" Enter
+    fi
 
     # Focus on left pane (main ralph loop)
     tmux select-pane -t "$session_name:${base_win}.0"
@@ -2036,6 +2047,8 @@ main() {
     # Re-apply CLI flags that must take priority over .ralphrc (Issue #23)
     # _cli_ENABLE_BACKUP is set only when --backup / -b was explicitly passed
     [[ "${_cli_ENABLE_BACKUP:-false}" == "true" ]] && ENABLE_BACKUP=true
+    # _cli_KEEP_MONITOR_AFTER_EXIT is set only when --keep-monitor was passed (Issue #213)
+    [[ "${_cli_KEEP_MONITOR_AFTER_EXIT:-false}" == "true" ]] && KEEP_MONITOR_AFTER_EXIT=true
 
     # Resolve agent provider precedence: env > CLI (--provider) > .ralphrc >
     # default claude (#314). .ralphrc was sourced by load_ralphrc above (lowest);
@@ -2356,6 +2369,7 @@ Options:
     -p, --prompt FILE       Set prompt file (default: $PROMPT_FILE)
     -s, --status            Show current status and exit
     -m, --monitor           Start with tmux session and live monitor (requires tmux)
+    --keep-monitor          Keep tmux monitor panes alive after the loop exits (Issue #213)
     -v, --verbose           Show detailed progress updates during execution
     -l, --live              Show Claude Code output in real-time (auto-switches to JSON output)
     -t, --timeout MIN       Set Claude Code execution timeout in minutes (default: $CLAUDE_TIMEOUT_MINUTES)
@@ -2534,6 +2548,11 @@ while [[ $# -gt 0 ]]; do
         -b|--backup)
             ENABLE_BACKUP=true
             _cli_ENABLE_BACKUP=true
+            shift
+            ;;
+        --keep-monitor)
+            KEEP_MONITOR_AFTER_EXIT=true
+            _cli_KEEP_MONITOR_AFTER_EXIT=true
             shift
             ;;
         --rollback)
