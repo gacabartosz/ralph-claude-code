@@ -497,10 +497,32 @@ generate_prompt_md() {
     local project_type="${2:-unknown}"
     local framework="${3:-}"
     local objectives="${4:-}"
+    local monorepo_services="${5:-}"
 
     local framework_line=""
     if [[ -n "$framework" ]]; then
         framework_line="**Framework:** $framework"
+    fi
+
+    # Monorepo Guidelines (#163): populated with the service list when known,
+    # otherwise a generic pointer so the guidance is present if monorepo is enabled.
+    local monorepo_section
+    if [[ -n "$monorepo_services" ]]; then
+        local services_display
+        services_display=$(printf '%s' "$monorepo_services" | tr ',' ' ' | tr -s ' ')
+        services_display="${services_display# }"; services_display="${services_display% }"
+        monorepo_section="## Monorepo Guidelines
+- This project contains multiple services: ${services_display}
+- When modifying shared code, check for impacts in dependent services (shared types, API contracts)
+- Run only the affected service's tests, not the whole repo
+- Scope a run to one service with: \`ralph --service <name>\`
+"
+    else
+        monorepo_section="## Monorepo Guidelines
+- If this repo has multiple services, declare them with \`MONOREPO_SERVICES\` in .ralphrc
+- Then scope a run to one service with: \`ralph --service <name>\` (Claude focuses on that service and its tests)
+- When modifying shared code, check for impacts in dependent services
+"
     fi
 
     local objectives_section=""
@@ -533,6 +555,7 @@ ${objectives_section}
 - Update fix_plan.md with your learnings
 - Commit working changes with descriptive messages
 
+${monorepo_section}
 ## Protected Files (DO NOT MODIFY)
 The following files and directories are part of Ralph's infrastructure.
 NEVER delete, move, rename, or overwrite these under any circumstances:
@@ -710,6 +733,13 @@ CLAUDE_CODE_CMD="${claude_cmd}"
 # env var > --provider flag > this file. Non-Claude providers need their CLI on PATH;
 # see docs/providers/{CODEX,GEMINI,OPENCODE,DROID,KILOCODE,COPILOT}.md.
 AGENT_PROVIDER="claude"
+
+# Monorepo awareness (Issue #163)
+# Declare service boundaries for multi-service repos. When set, 'ralph --service
+# <name>' scopes a run to one service (Claude is told to work only within it and
+# run that service's tests). Leave commented for single-package projects.
+# MONOREPO_SERVICES="api,web,shared,workers"   # comma/space-separated service list
+# MONOREPO_ROOT="services/"                       # optional dir prefix for services
 
 # Loop settings
 MAX_CALLS_PER_HOUR=100

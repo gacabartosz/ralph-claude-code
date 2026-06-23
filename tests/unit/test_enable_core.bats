@@ -313,6 +313,32 @@ EOF
     [[ "$output" =~ "AGENT_PROVIDER=\"claude\"" ]]
 }
 
+@test "generate_ralphrc includes commented MONOREPO knobs (#163)" {
+    output=$(generate_ralphrc "my-project" "typescript" "local")
+
+    # Both knobs present and commented-out (opt-in for monorepos)
+    [[ "$output" == *"# MONOREPO_SERVICES="* ]]
+    [[ "$output" == *"# MONOREPO_ROOT="* ]]
+    # The active config must NOT set them (single-package default)
+    ! grep -qE '^MONOREPO_SERVICES=' <<< "$output"
+}
+
+@test "generate_prompt_md includes generic Monorepo Guidelines by default (#163)" {
+    output=$(generate_prompt_md "my-project" "typescript")
+
+    [[ "$output" == *"Monorepo Guidelines"* ]]
+    [[ "$output" == *"ralph --service"* ]]
+    [[ "$output" == *"MONOREPO_SERVICES"* ]]
+}
+
+@test "generate_prompt_md lists services when provided (#163)" {
+    output=$(generate_prompt_md "my-project" "typescript" "" "" "api,web,shared")
+
+    [[ "$output" == *"Monorepo Guidelines"* ]]
+    [[ "$output" == *"multiple services: api web shared"* ]]
+    [[ "$output" == *"ralph --service <name>"* ]]
+}
+
 # =============================================================================
 # FULL ENABLE FLOW (3 tests)
 # =============================================================================

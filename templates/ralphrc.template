@@ -43,6 +43,16 @@ CLAUDE_OUTPUT_FORMAT="json"
 AGENT_PROVIDER="claude"
 
 # =============================================================================
+# MONOREPO AWARENESS (Issue #163)
+# =============================================================================
+
+# Declare service boundaries for multi-service repos. When set, 'ralph --service
+# <name>' scopes a run to one service (Claude works only within it and runs that
+# service's tests). Leave commented for single-package projects.
+# MONOREPO_SERVICES="api,web,shared,workers"   # comma/space-separated service list
+# MONOREPO_ROOT="services/"                       # optional dir prefix for services
+
+# =============================================================================
 # TOOL PERMISSIONS
 # =============================================================================
 
