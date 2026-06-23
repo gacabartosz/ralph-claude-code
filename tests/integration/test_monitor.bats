@@ -129,6 +129,62 @@ EOF
 }
 
 # ──────────────────────────────────────────────────────────────────────────────
+# Test 3b: active provider display (#324)
+# ──────────────────────────────────────────────────────────────────────────────
+
+@test "ralph_monitor.sh displays the active provider from status.json" {
+    cat > .ralph/status.json << 'EOF'
+{
+    "loop_count": 1,
+    "provider": "codex",
+    "calls_made_this_hour": 0,
+    "max_calls_per_hour": 100,
+    "status": "running"
+}
+EOF
+
+    local output
+    output=$(monitor_output)
+
+    echo "$output" | grep -q "Provider:" || {
+        echo "Expected 'Provider:' label in output"
+        echo "Full output: $output"
+        return 1
+    }
+    echo "$output" | grep -q "codex" || {
+        echo "Expected 'codex' provider value in output"
+        echo "Full output: $output"
+        return 1
+    }
+}
+
+@test "ralph_monitor.sh provider falls back to claude when field absent" {
+    # Older status.json without a provider field -> default to claude
+    cat > .ralph/status.json << 'EOF'
+{
+    "loop_count": 1,
+    "calls_made_this_hour": 0,
+    "max_calls_per_hour": 100,
+    "status": "running"
+}
+EOF
+
+    local output
+    output=$(monitor_output)
+
+    echo "$output" | grep -q "Provider:" || {
+        echo "Expected 'Provider:' label in output"
+        echo "Full output: $output"
+        return 1
+    }
+    echo "$output" | grep -q "claude" || {
+        echo "Expected 'claude' fallback provider value in output"
+        echo "Full output: $output"
+        return 1
+    }
+}
+
+# ──────────────────────────────────────────────────────────────────────────────
 # Test 4: recent log entries
 # ──────────────────────────────────────────────────────────────────────────────
 

@@ -59,9 +59,13 @@ display_status() {
         local calls_made=$(echo "$status_data" | jq -r '.calls_made_this_hour // "0"' 2>/dev/null || echo "0")
         local max_calls=$(echo "$status_data" | jq -r '.max_calls_per_hour // "100"' 2>/dev/null || echo "100")
         local status=$(echo "$status_data" | jq -r '.status // "unknown"' 2>/dev/null || echo "unknown")
-        
+        # Active agent provider (#324). Older status.json files (and corrupted
+        # JSON) lack the field, so fall back to the default provider, claude.
+        local provider=$(echo "$status_data" | jq -r '.provider // "claude"' 2>/dev/null || echo "claude")
+
         echo -e "${CYAN}┌─ Current Status ────────────────────────────────────────────────────────┐${NC}"
         echo -e "${CYAN}│${NC} Loop Count:     ${WHITE}#$loop_count${NC}"
+        echo -e "${CYAN}│${NC} Provider:       ${WHITE}$provider${NC}"
         echo -e "${CYAN}│${NC} Status:         ${GREEN}$status${NC}"
         echo -e "${CYAN}│${NC} API Calls:      $calls_made/$max_calls"
         echo -e "${CYAN}└─────────────────────────────────────────────────────────────────────────┘${NC}"
