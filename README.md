@@ -426,12 +426,12 @@ CB_SAME_ERROR_THRESHOLD=5
 
 Ralph drives an agent CLI through a pluggable adapter seam. Claude Code is the
 default and reference provider; **Codex** (`codex exec`), **Gemini** (`gemini`),
-**OpenCode** (`opencode run`), **Droid** (`droid exec`, Factory) and **Kilocode**
-(`kilocode --auto`) are non-Claude provider adapters. Select one with precedence
-**env > `--provider` > `.ralphrc`**:
+**OpenCode** (`opencode run`), **Droid** (`droid exec`, Factory), **Kilocode**
+(`kilocode --auto`) and **Copilot** (`copilot`, text-only) are non-Claude provider
+adapters. Select one with precedence **env > `--provider` > `.ralphrc`**:
 
 ```bash
-ralph --provider codex          # one-off (or: gemini, opencode, droid, kilocode)
+ralph --provider codex          # one-off (or: gemini, opencode, droid, kilocode, copilot)
 AGENT_PROVIDER=codex ralph       # environment (highest precedence)
 AGENT_PROVIDER="codex"           # .ralphrc (lowest precedence)
 ```
@@ -446,17 +446,22 @@ AGENT_PROVIDER="codex"           # .ralphrc (lowest precedence)
 | `opencode` | adapter | ✅ | ❌ (auto-approve) | ❌ | ✅ (`-s <id>`) | ✅ |
 | `droid`    | adapter | ✅ | ❌ (`--auto`) | ❌ | ✅ (`--session-id`) | ✅ |
 | `kilocode` | adapter | ✅ | ❌ (`--auto`) | ❌ | ⚠️ (`-c` continue-last†) | ✅ |
+| `copilot`  | adapter (text-only‡) | ❌ | ❌ (build-time perms) | ❌ | ✅ (`--resume <id>`) | ✅ |
 
 † Kilocode resumes only the **last** session (`-c/--continue`, no session-id
 targeting) — the weakest resume form among the providers.
+‡ Copilot has **no structured (JSON) output** — the most degraded provider. Token
+limiting, the permission-denial CB and API-limit detection are all disabled; exit
+detection runs on the text-mode `RALPH_STATUS` path (#224).
 
 Unsupported features degrade gracefully (no-op + one-time warning); exit detection
 via `RALPH_STATUS` is provider-independent. See
 [docs/providers/CODEX.md](docs/providers/CODEX.md),
 [docs/providers/GEMINI.md](docs/providers/GEMINI.md),
 [docs/providers/OPENCODE.md](docs/providers/OPENCODE.md),
-[docs/providers/DROID.md](docs/providers/DROID.md) and
-[docs/providers/KILOCODE.md](docs/providers/KILOCODE.md) for adapter details.
+[docs/providers/DROID.md](docs/providers/DROID.md),
+[docs/providers/KILOCODE.md](docs/providers/KILOCODE.md) and
+[docs/providers/COPILOT.md](docs/providers/COPILOT.md) for adapter details.
 
 ### Rate Limiting & Circuit Breaker
 
