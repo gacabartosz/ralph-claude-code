@@ -563,3 +563,45 @@ build_ralph_cmd_for_test() {
         "Write,Read" "true" "24")
     [[ "$result" != *"--provider"* ]]
 }
+
+# =============================================================================
+# MONOREPO --service FLAG TESTS (Issue #163)
+# =============================================================================
+
+@test "--service flag is accepted (parsed, not unknown)" {
+    run bash "$RALPH_SCRIPT" --service api --help
+    assert_success
+    [[ "$output" != *"Unknown option"* ]]
+}
+
+@test "--service without an argument errors" {
+    run bash "$RALPH_SCRIPT" --service
+    assert_failure
+    [[ "$output" == *"requires a service name"* ]]
+}
+
+@test "--help documents the --service flag" {
+    run bash "$RALPH_SCRIPT" --help
+    assert_success
+    [[ "$output" == *"--service"* ]]
+}
+
+@test "--service errors when MONOREPO_SERVICES is not configured" {
+    run env MONOREPO_SERVICES="" bash "$RALPH_SCRIPT" --service api
+    assert_failure
+    [[ "$output" == *"requires MONOREPO_SERVICES"* ]]
+}
+
+@test "--service rejects a service not in MONOREPO_SERVICES" {
+    run env MONOREPO_SERVICES="api,web" bash "$RALPH_SCRIPT" --service billing
+    assert_failure
+    [[ "$output" == *"Unknown monorepo service: 'billing'"* ]]
+    [[ "$output" == *"api"* && "$output" == *"web"* ]]
+}
+
+@test "--service accepts a configured service (no validation error)" {
+    # Will still fail later (no claude/project), but NOT on service validation.
+    run env MONOREPO_SERVICES="api,web" bash "$RALPH_SCRIPT" --service api
+    [[ "$output" != *"Unknown monorepo service"* ]]
+    [[ "$output" != *"requires MONOREPO_SERVICES"* ]]
+}

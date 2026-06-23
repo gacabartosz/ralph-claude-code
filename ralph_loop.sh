@@ -27,6 +27,7 @@ source "$SCRIPT_DIR/lib/file_protection.sh" || { echo "FATAL: Failed to source l
 source "$SCRIPT_DIR/lib/log_utils.sh" || { echo "FATAL: Failed to source lib/log_utils.sh" >&2; exit 1; }
 source "$SCRIPT_DIR/lib/cost_utils.sh" || { echo "FATAL: Failed to source lib/cost_utils.sh" >&2; exit 1; }
 source "$SCRIPT_DIR/lib/plan_limit.sh" || { echo "FATAL: Failed to source lib/plan_limit.sh" >&2; exit 1; }
+source "$SCRIPT_DIR/lib/monorepo.sh" || { echo "FATAL: Failed to source lib/monorepo.sh" >&2; exit 1; }
 
 # Configuration
 # Ralph-specific files live in .ralph/ subfolder
@@ -97,6 +98,8 @@ DRY_RUN="${DRY_RUN:-false}"                      # Simulate loop without making 
 ENABLE_NOTIFICATIONS="${ENABLE_NOTIFICATIONS:-false}"  # Enable desktop notifications; set true or use --notify flag
 ENABLE_BACKUP="${ENABLE_BACKUP:-false}"               # Enable automatic git backups before each loop; set true or use --backup flag
 KEEP_MONITOR_AFTER_EXIT="${KEEP_MONITOR_AFTER_EXIT:-false}"  # Keep tmux monitor panes alive after the loop exits (Issue #213); set true or use --keep-monitor
+RALPH_SERVICE="${RALPH_SERVICE:-}"           # Monorepo service scope (Issue #163); set via --service <name>, validated against MONOREPO_SERVICES
+RALPH_SERVICE_DIR=""                          # Resolved path of the scoped service (set in main when --service is used)
 
 # Session management configuration (Phase 1.2)
 # Note: SESSION_EXPIRATION_SECONDS is defined in lib/response_analyzer.sh (86400 = 24 hours)
@@ -412,6 +415,10 @@ setup_tmux_session() {
     # the CLI choice needs forwarding.
     if [[ -n "${_cli_AGENT_PROVIDER:-}" ]]; then
         ralph_cmd="$ralph_cmd --provider $_cli_AGENT_PROVIDER"
+    fi
+    # Forward --service if explicitly set via CLI (#163); env/.ralphrc inherited.
+    if [[ -n "${_cli_RALPH_SERVICE:-}" ]]; then
+        ralph_cmd="$ralph_cmd --service $_cli_RALPH_SERVICE"
     fi
 
     # By default, chain tmux kill-session after the loop command so the entire
@@ -994,6 +1001,11 @@ build_loop_context() {
         local incomplete_tasks
         incomplete_tasks=$(_safe_count "^[[:space:]]*- \[ \]" "$RALPH_DIR/fix_plan.md")
         context+="Remaining tasks: ${incomplete_tasks}. "
+    fi
+
+    # Monorepo service scope (#163): tell Claude to focus on the selected service
+    if [[ -n "${RALPH_SERVICE:-}" ]]; then
+        context+="Monorepo scope: work ONLY within service '${RALPH_SERVICE}' (${RALPH_SERVICE_DIR:-$RALPH_SERVICE}/). Run that service's tests, not the whole repo. "
     fi
 
     # Add circuit breaker state
@@ -2126,6 +2138,25 @@ main() {
     fi
     [[ "${VERBOSE_PROGRESS:-}" == "true" ]] && log_status "INFO" "Agent provider: $AGENT_PROVIDER"
 
+    # Resolve monorepo service scope (#163). --service requires MONOREPO_SERVICES
+    # (from .ralphrc, loaded above) and must name a configured service; the scope
+    # is surfaced to Claude via build_loop_context (the loop stays at repo root so
+    # .ralph/ paths are unaffected).
+    if [[ -n "${_cli_RALPH_SERVICE:-}" ]]; then
+        if ! monorepo_is_enabled; then
+            log_status "ERROR" "--service requires MONOREPO_SERVICES to be set in .ralphrc"
+            exit 1
+        fi
+        if ! monorepo_has_service "$_cli_RALPH_SERVICE"; then
+            log_status "ERROR" "Unknown monorepo service: '$_cli_RALPH_SERVICE'"
+            echo "Configured services: $(monorepo_list_services | tr '\n' ' ')" >&2
+            exit 1
+        fi
+        RALPH_SERVICE="$_cli_RALPH_SERVICE"
+        RALPH_SERVICE_DIR="$(monorepo_service_path "$RALPH_SERVICE")"
+        log_status "INFO" "Monorepo service scope: $RALPH_SERVICE ($RALPH_SERVICE_DIR/)"
+    fi
+
     # Gate session continuity on provider capability (#315). Providers without
     # supports_session_resume cannot resume a prior session id, so disable
     # continuity (one-time WARN) rather than passing an unsupported resume flag.
@@ -2465,6 +2496,8 @@ Modern CLI Options (Phase 1.1):
     --provider NAME         Select the agent provider (default: $AGENT_PROVIDER)
                             Registered: $AGENT_REGISTERED_PROVIDERS
                             Precedence: AGENT_PROVIDER env > --provider > .ralphrc
+    --service NAME          Scope the run to a monorepo service (Issue #163)
+                            Requires MONOREPO_SERVICES in .ralphrc
 
 Files created:
     - $LOG_DIR/: All execution logs
@@ -2597,6 +2630,16 @@ while [[ $# -gt 0 ]]; do
             # Record the CLI choice; final precedence (env > CLI > .ralphrc) is
             # resolved in main() after load_ralphrc (#314).
             _cli_AGENT_PROVIDER="$2"
+            shift 2
+            ;;
+        --service)
+            if [[ -z "${2:-}" ]]; then
+                echo "Error: --service requires a service name"
+                exit 1
+            fi
+            # Validated in main() against MONOREPO_SERVICES (only known after
+            # load_ralphrc); record the raw choice here (#163).
+            _cli_RALPH_SERVICE="$2"
             shift 2
             ;;
         --session-expiry)

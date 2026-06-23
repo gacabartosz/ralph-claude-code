@@ -112,6 +112,11 @@ setup() {
             context+="Remaining tasks: ${incomplete_tasks}. "
         fi
 
+        # Monorepo service scope (#163) — mirrors the real build_loop_context
+        if [[ -n "${RALPH_SERVICE:-}" ]]; then
+            context+="Monorepo scope: work ONLY within service '${RALPH_SERVICE}' (${RALPH_SERVICE_DIR:-$RALPH_SERVICE}/). Run that service's tests, not the whole repo. "
+        fi
+
         if [[ -f "$RALPH_DIR/.circuit_breaker_state" ]]; then
             local cb_state=$(jq -r '.state // "UNKNOWN"' "$RALPH_DIR/.circuit_breaker_state" 2>/dev/null)
             if [[ "$cb_state" != "CLOSED" && "$cb_state" != "null" && -n "$cb_state" ]]; then
@@ -372,6 +377,24 @@ EOF
 
     # Should not error
     assert_equal "$status" "0"
+}
+
+@test "build_loop_context injects the monorepo service scope when set (#163)" {
+    # export so the value propagates into run's subshell
+    export RALPH_SERVICE="api"
+    export RALPH_SERVICE_DIR="services/api"
+    local out
+    out=$(build_loop_context 1)
+    [[ "$out" == *"Monorepo scope"* ]]
+    [[ "$out" == *"service 'api'"* ]]
+    [[ "$out" == *"services/api/"* ]]
+}
+
+@test "build_loop_context omits the service scope when RALPH_SERVICE is unset" {
+    export RALPH_SERVICE=""
+    local out
+    out=$(build_loop_context 1)
+    [[ "$out" != *"Monorepo scope"* ]]
 }
 
 # =============================================================================
