@@ -81,6 +81,30 @@ teardown() {
     [ "$max_tokens" = "0" ]
 }
 
+@test "update_status() includes provider field (defaults to claude)" {
+    # No AGENT_PROVIDER set -> the field defaults to claude (#324)
+    unset AGENT_PROVIDER
+    source "$RALPH_SCRIPT"
+
+    update_status 1 0 "starting" "running" ""
+
+    local provider
+    provider=$(jq -r '.provider' "$STATUS_FILE")
+    [ "$provider" = "claude" ]
+}
+
+@test "update_status() surfaces the active AGENT_PROVIDER" {
+    # An explicitly selected provider is carried into status.json (#324)
+    export AGENT_PROVIDER="codex"
+    source "$RALPH_SCRIPT"
+
+    update_status 2 7 "executing" "running" ""
+
+    local provider
+    provider=$(jq -r '.provider' "$STATUS_FILE")
+    [ "$provider" = "codex" ]
+}
+
 @test "update_status() with exit reason" {
     source "$RALPH_SCRIPT"
 
