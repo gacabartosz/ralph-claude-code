@@ -31,6 +31,18 @@ CLAUDE_TIMEOUT_MINUTES=15
 CLAUDE_OUTPUT_FORMAT="json"
 
 # =============================================================================
+# AGENT PROVIDER (multi-provider epic, #314)
+# =============================================================================
+
+# Which agent CLI adapter Ralph drives.
+# Options: claude (default), codex, gemini, opencode, droid, kilocode,
+#          copilot (text-only/degraded).
+# Precedence: AGENT_PROVIDER env var > --provider flag > this file.
+# Non-Claude providers need their CLI on PATH; see
+# docs/providers/{CODEX,GEMINI,OPENCODE,DROID,KILOCODE,COPILOT}.md.
+AGENT_PROVIDER="claude"
+
+# =============================================================================
 # TOOL PERMISSIONS
 # =============================================================================
 

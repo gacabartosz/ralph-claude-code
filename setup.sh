@@ -90,6 +90,12 @@ MAX_CALLS_PER_HOUR=100
 CLAUDE_TIMEOUT_MINUTES=15
 CLAUDE_OUTPUT_FORMAT="json"
 
+# Agent provider (multi-provider epic, #314)
+# Options: claude (default), codex, gemini, opencode, droid, kilocode, copilot (text-only/degraded).
+# Precedence: AGENT_PROVIDER env var > --provider flag > this file.
+# Non-Claude providers need their CLI on PATH; see docs/providers/{CODEX,GEMINI,OPENCODE,DROID,KILOCODE,COPILOT}.md.
+AGENT_PROVIDER="claude"
+
 # Tool permissions
 # Comma-separated list of allowed tools
 # Safe git subcommands only - broad Bash(git *) allows destructive commands like git clean/git rm (Issue #149)
