@@ -5,7 +5,8 @@
 # adapter. This is the abstraction seam for the multi-provider epic.
 #
 # Claude is the reference adapter and default; Codex (#317), Gemini (#318),
-# OpenCode (#319) and Droid (#320) are non-Claude adapters. Selection is #314.
+# OpenCode (#319), Droid (#320) and Kilocode (#321) are non-Claude adapters.
+# Selection is #314.
 #
 # Adapter contract: each provider lib defines agent_<name>_{build_command,
 # detect_format,normalize_response,has_capability} + AGENT_<NAME>_CAPABILITIES.
@@ -23,7 +24,7 @@ AGENT_PROVIDER="${AGENT_PROVIDER:-claude}"
 
 # Space-separated list of registered providers (adapters available in this lib).
 # Provider selection (#314) validates AGENT_PROVIDER against this list.
-AGENT_REGISTERED_PROVIDERS="claude codex gemini opencode droid"
+AGENT_REGISTERED_PROVIDERS="claude codex gemini opencode droid kilocode"
 
 # agent_provider_is_registered - return 0 if $1 is a registered provider.
 agent_provider_is_registered() {
@@ -45,6 +46,8 @@ source "$AGENTS_LIB_DIR/gemini.sh"
 source "$AGENTS_LIB_DIR/opencode.sh"
 # shellcheck source=lib/agents/droid.sh
 source "$AGENTS_LIB_DIR/droid.sh"
+# shellcheck source=lib/agents/kilocode.sh
+source "$AGENTS_LIB_DIR/kilocode.sh"
 
 # agent_build_command - dispatch command construction to the active adapter.
 #
@@ -67,6 +70,9 @@ agent_build_command() {
             ;;
         droid)
             agent_droid_build_command "$@"
+            ;;
+        kilocode)
+            agent_kilocode_build_command "$@"
             ;;
         *)
             if declare -f log_status >/dev/null 2>&1; then
@@ -101,6 +107,9 @@ agent_detect_format() {
         droid)
             agent_droid_detect_format "$@"
             ;;
+        kilocode)
+            agent_kilocode_detect_format "$@"
+            ;;
         *)
             if declare -f log_status >/dev/null 2>&1; then
                 log_status "ERROR" "Unknown AGENT_PROVIDER: '$AGENT_PROVIDER'"
@@ -134,6 +143,9 @@ agent_normalize_response() {
             ;;
         droid)
             agent_droid_normalize_response "$@"
+            ;;
+        kilocode)
+            agent_kilocode_normalize_response "$@"
             ;;
         *)
             if declare -f log_status >/dev/null 2>&1; then
@@ -174,6 +186,9 @@ agent_has_capability() {
             ;;
         droid)
             agent_droid_has_capability "$@"
+            ;;
+        kilocode)
+            agent_kilocode_has_capability "$@"
             ;;
         *)
             return 1
