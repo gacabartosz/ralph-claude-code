@@ -106,3 +106,55 @@ EOF
     [[ "$output" == *"total_loops"* ]]
     [[ "$output" == *"2"* ]]
 }
+
+# =============================================================================
+# TOKEN COST TRACKING IN METRICS (Issue #110, ENH.2d)
+# =============================================================================
+
+@test "track_metrics: records per-loop cost field" {
+    source "$RALPH_SCRIPT"
+
+    track_metrics 1 45 true 3 0.067500
+
+    local line
+    line=$(cat "$LOG_DIR/metrics.jsonl")
+    echo "$line" | jq . > /dev/null
+    # Numeric equality (jq 1.7+ preserves the 0.067500 literal; 1.6 canonicalizes)
+    [[ "$(echo "$line" | jq -r '.cost == 0.0675')" == "true" ]]
+}
+
+@test "track_metrics: cost defaults to 0 when not supplied (back-compat)" {
+    source "$RALPH_SCRIPT"
+
+    track_metrics 1 45 true 3
+
+    local line
+    line=$(cat "$LOG_DIR/metrics.jsonl")
+    [[ "$(echo "$line" | jq -r '.cost')" == "0" ]]
+}
+
+@test "ralph-stats: sums per-loop cost into total_cost_usd" {
+    mkdir -p "$RALPH_DIR/logs"
+    cat > "$LOG_DIR/metrics.jsonl" << 'EOF'
+{"timestamp":"2025-01-01T00:00:00+00:00","loop":1,"duration":30,"success":true,"calls":2,"cost":0.067500}
+{"timestamp":"2025-01-01T00:01:00+00:00","loop":2,"duration":60,"success":true,"calls":5,"cost":0.010000}
+EOF
+
+    run env RALPH_DIR="$RALPH_DIR" bash "$STATS_SCRIPT"
+
+    assert_success
+    # 0.0675 + 0.0100 = 0.0775
+    [[ "$(echo "$output" | jq -r '.total_cost_usd')" == "0.0775" ]]
+}
+
+@test "ralph-stats: total_cost_usd is 0 for legacy metrics without a cost field" {
+    mkdir -p "$RALPH_DIR/logs"
+    cat > "$LOG_DIR/metrics.jsonl" << 'EOF'
+{"timestamp":"2025-01-01T00:00:00+00:00","loop":1,"duration":30,"success":true,"calls":2}
+EOF
+
+    run env RALPH_DIR="$RALPH_DIR" bash "$STATS_SCRIPT"
+
+    assert_success
+    [[ "$(echo "$output" | jq -r '.total_cost_usd')" == "0" ]]
+}

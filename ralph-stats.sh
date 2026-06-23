@@ -19,5 +19,6 @@ jq -s '{
     total_loops: length,
     successful: (map(select(.success==true)) | length),
     avg_duration: (if length > 0 then (map(.duration) | add) / length else 0 end),
-    total_calls: (map(.calls) | add // 0)
+    total_calls: (map(.calls) | add // 0),
+    total_cost_usd: ((map(.cost // 0) | add // 0) * 1000000 | round / 1000000)
 }' "$METRICS_FILE"

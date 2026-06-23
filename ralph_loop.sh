@@ -658,20 +658,24 @@ increment_call_counter() {
 }
 
 # Track loop execution metrics to logs/metrics.jsonl (Issue #21)
-# Arguments: loop_num duration_seconds success(true|false) calls_made
+# Arguments: loop_num duration_seconds success(true|false) calls_made [cost_usd]
+# cost_usd (Issue #110) is the estimated USD spend for this loop; defaults to 0
+# for back-compat with callers that don't pass it.
 track_metrics() {
     local loop_num=$1
     local duration=$2
     local success=$3
     local calls=$4
+    local cost="${5:-0}"
+    [[ "$cost" =~ ^[0-9.]+$ ]] || cost=0
 
     local ts
     ts=$(get_iso_timestamp)
     local metrics_file="$LOG_DIR/metrics.jsonl"
 
     mkdir -p "$LOG_DIR"
-    printf '{"timestamp":"%s","loop":%d,"duration":%d,"success":%s,"calls":%d}\n' \
-        "$ts" "$loop_num" "$duration" "$success" "$calls" >> "$metrics_file"
+    printf '{"timestamp":"%s","loop":%d,"duration":%d,"success":%s,"calls":%d,"cost":%s}\n' \
+        "$ts" "$loop_num" "$duration" "$success" "$calls" "$cost" >> "$metrics_file"
 }
 
 # Print a one-line metrics summary from logs/metrics.jsonl (Issue #21)
@@ -685,7 +689,8 @@ print_metrics_summary() {
         total_loops: length,
         successful: (map(select(.success==true)) | length),
         avg_duration: (if length > 0 then (map(.duration) | add) / length else 0 end),
-        total_calls: (map(.calls) | add // 0)
+        total_calls: (map(.calls) | add // 0),
+        total_cost_usd: ((map(.cost // 0) | add // 0) * 1000000 | round / 1000000)
     }' "$metrics_file" 2>/dev/null)
     [[ -n "$summary" ]] && log_status "INFO" "Metrics summary: $summary"
 }
@@ -2308,6 +2313,9 @@ main() {
         local loop_start_epoch
         loop_start_epoch=$(get_epoch_seconds)
         local calls_before_exec="$calls_made"
+        # Pre-execution accumulated cost, for the per-loop cost delta (Issue #110)
+        local cost_before_exec
+        cost_before_exec=$(cat "$COST_FILE" 2>/dev/null || echo "0")
 
         # Create backup branch before execution (Issue #23)
         create_backup "$loop_count"
@@ -2325,7 +2333,11 @@ main() {
         local calls_after_exec
         calls_after_exec=$(cat "$CALL_COUNT_FILE" 2>/dev/null || echo "0")
         local calls_this_loop=$(( calls_after_exec > calls_before_exec ? calls_after_exec - calls_before_exec : calls_after_exec ))
-        track_metrics "$loop_count" "$loop_duration" "$loop_success" "$calls_this_loop"
+        # Per-loop estimated cost delta (Issue #110); cost_delta handles hourly resets
+        local cost_after_exec cost_this_loop
+        cost_after_exec=$(cat "$COST_FILE" 2>/dev/null || echo "0")
+        cost_this_loop=$(cost_delta "$cost_before_exec" "$cost_after_exec")
+        track_metrics "$loop_count" "$loop_duration" "$loop_success" "$calls_this_loop" "$cost_this_loop"
 
         if [ $exec_result -eq 0 ]; then
             update_status "$loop_count" "$(cat "$CALL_COUNT_FILE")" "completed" "success"

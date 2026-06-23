@@ -99,3 +99,21 @@ setup() {
     [ "$(add_cost '' 'x')" = "0.000000" ]
     [ "$(add_cost '1.5' '')" = "1.500000" ]
 }
+
+@test "cost_delta: normal interval is after - before" {
+    [ "$(cost_delta '0.010000' '0.077500')" = "0.067500" ]
+}
+
+@test "cost_delta: hourly reset (after < before) falls back to after" {
+    # counter reset to 0 mid-loop then accumulated 0.012 -> delta is 0.012, not negative
+    [ "$(cost_delta '0.500000' '0.012000')" = "0.012000" ]
+}
+
+@test "cost_delta: equal before/after is zero" {
+    [ "$(cost_delta '0.067500' '0.067500')" = "0.000000" ]
+}
+
+@test "cost_delta: tolerates empty/garbage operands" {
+    [ "$(cost_delta '' '')" = "0.000000" ]
+    [ "$(cost_delta 'x' '1.5')" = "1.500000" ]
+}

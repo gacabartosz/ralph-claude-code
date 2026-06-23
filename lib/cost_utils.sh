@@ -74,3 +74,14 @@ add_cost() {
     [[ "$b" =~ ^[0-9.]+$ ]] || b=0
     awk -v x="$a" -v y="$b" 'BEGIN { printf "%.6f", x + y }'
 }
+
+# cost_delta <before> <after> -> per-interval spend (after - before), 6 dp.
+# The hourly cost counter resets to 0 mid-loop on an hour rollover; in that case
+# after < before, so fall back to `after` (the post-reset accumulation) — mirrors
+# the calls_this_loop ternary in the main loop so per-loop cost stays sane.
+cost_delta() {
+    local before="${1:-0}" after="${2:-0}"
+    [[ "$before" =~ ^[0-9.]+$ ]] || before=0
+    [[ "$after" =~ ^[0-9.]+$ ]] || after=0
+    awk -v b="$before" -v a="$after" 'BEGIN { d = a - b; if (d < 0) d = a; printf "%.6f", d }'
+}
