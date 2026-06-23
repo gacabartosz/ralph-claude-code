@@ -26,6 +26,7 @@ source "$SCRIPT_DIR/lib/circuit_breaker.sh" || { echo "FATAL: Failed to source l
 source "$SCRIPT_DIR/lib/file_protection.sh" || { echo "FATAL: Failed to source lib/file_protection.sh" >&2; exit 1; }
 source "$SCRIPT_DIR/lib/log_utils.sh" || { echo "FATAL: Failed to source lib/log_utils.sh" >&2; exit 1; }
 source "$SCRIPT_DIR/lib/cost_utils.sh" || { echo "FATAL: Failed to source lib/cost_utils.sh" >&2; exit 1; }
+source "$SCRIPT_DIR/lib/plan_limit.sh" || { echo "FATAL: Failed to source lib/plan_limit.sh" >&2; exit 1; }
 
 # Configuration
 # Ralph-specific files live in .ralph/ subfolder
@@ -41,6 +42,7 @@ LIVE_LOG_FILE="$RALPH_DIR/live.log"  # Fixed file for live output monitoring
 CALL_COUNT_FILE="$RALPH_DIR/.call_count"
 TOKEN_COUNT_FILE="$RALPH_DIR/.token_count"
 COST_FILE="$RALPH_DIR/.cost_usd"           # Accumulated estimated USD cost this hour (Issue #110)
+PLAN_LIMIT_RESET_FILE="$RALPH_DIR/.plan_limit_reset"  # Parsed plan-limit reset time, set on detection (Issue #102)
 TIMESTAMP_FILE="$RALPH_DIR/.last_reset"
 USE_TMUX=false
 
@@ -2035,6 +2037,19 @@ EOF
                 fi
             fi
 
+            # Layer 2.5: Plan-limit exhaustion with reset-time parsing (Issue #102)
+            # Runs before the generic text fallbacks so the user-facing message can
+            # say WHEN Ralph will resume. detect_plan_limit_reset applies the same
+            # tool-result noise filter internally and echoes the parsed reset time
+            # (possibly empty). The reset time is stashed for the loop's recovery
+            # prompt/notification.
+            local plan_reset
+            if plan_reset=$(detect_plan_limit_reset "$output_file"); then
+                echo "$plan_reset" > "$PLAN_LIMIT_RESET_FILE" 2>/dev/null || true
+                log_status "ERROR" "$(format_plan_limit_message "$plan_reset")"
+                return 2  # Plan usage limit detected (#102)
+            fi
+
             # Layer 3: Filtered text fallback — only check tail, excluding tool result lines
             # Filters out type:user, tool_result, and tool_use_id lines which contain echoed file content
             if tail -30 "$output_file" 2>/dev/null | grep -vE '"type"\s*:\s*"user"' | grep -v '"tool_result"' | grep -v '"tool_use_id"' | grep -qi "5.*hour.*limit\|limit.*reached.*try.*back\|usage.*limit.*reached"; then
@@ -2354,13 +2369,21 @@ main() {
             send_notification "Ralph - Circuit Breaker" "Circuit breaker opened - execution halted due to stagnation"
             break
         elif [ $exec_result -eq 2 ]; then
-            # API 5-hour limit reached - handle specially
+            # API / plan usage limit reached - handle specially
             update_status "$loop_count" "$(cat "$CALL_COUNT_FILE")" "api_limit" "paused"
-            log_status "WARN" "🛑 Claude API 5-hour limit reached!"
-            send_notification "Ralph - API Limit" "Claude API 5-hour usage limit reached. User action required."
-            
+            # If a plan-limit reset time was parsed (#102), include it in the message.
+            local plan_reset_time=""
+            if [[ -f "$PLAN_LIMIT_RESET_FILE" ]]; then
+                plan_reset_time=$(cat "$PLAN_LIMIT_RESET_FILE" 2>/dev/null)
+                rm -f "$PLAN_LIMIT_RESET_FILE" 2>/dev/null || true
+            fi
+            local resume_hint=""
+            [[ -n "$plan_reset_time" ]] && resume_hint=" Resets at ${plan_reset_time}."
+            log_status "WARN" "🛑 Claude API usage limit reached!${resume_hint}"
+            send_notification "Ralph - API Limit" "Claude API usage limit reached.${resume_hint} User action required."
+
             # Ask user whether to wait or exit
-            echo -e "\n${YELLOW}A Claude API usage limit has been reached (5-hour plan limit or Extra Usage quota).${NC}"
+            echo -e "\n${YELLOW}A Claude API usage limit has been reached (5-hour plan limit or Extra Usage quota).${resume_hint}${NC}"
             echo -e "${YELLOW}You can either:${NC}"
             echo -e "  ${GREEN}1)${NC} Wait for the limit to reset (usually within an hour)"
             echo -e "  ${GREEN}2)${NC} Exit the loop and try again later"

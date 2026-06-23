@@ -1132,6 +1132,59 @@ EOF
     echo "$output" | grep -qi 'extra.*usage\|usage.*limit'
 }
 
+# --- Plan Limit Exhaustion Detection Tests (Issue #102, ENH.4b) ---
+
+@test "ralph_loop.sh sources lib/plan_limit.sh" {
+    local script="${BATS_TEST_DIRNAME}/../../ralph_loop.sh"
+    run grep -E 'source .*lib/plan_limit\.sh' "$script"
+    assert_success
+}
+
+@test "execute_claude_code wires the plan-limit detection layer (#102)" {
+    local script="${BATS_TEST_DIRNAME}/../../ralph_loop.sh"
+    # detect_plan_limit_reset is called and returns 2 like the other API-limit layers
+    run grep 'detect_plan_limit_reset' "$script"
+    assert_success
+    run grep -A 4 'detect_plan_limit_reset "\$output_file"' "$script"
+    echo "$output" | grep -q 'return 2'
+}
+
+@test "plan-limit layer runs before the generic 5-hour text fallback" {
+    # The reset-time-aware message must win over the generic Layer 3 fallback,
+    # so detect_plan_limit_reset must appear before the "5.*hour.*limit" grep.
+    local script="${BATS_TEST_DIRNAME}/../../ralph_loop.sh"
+    local plan_line fallback_line
+    plan_line=$(grep -n 'detect_plan_limit_reset "\$output_file"' "$script" | head -1 | cut -d: -f1)
+    fallback_line=$(grep -n '5\.\*hour\.\*limit' "$script" | head -1 | cut -d: -f1)
+    [[ -n "$plan_line" && -n "$fallback_line" ]]
+    [[ "$plan_line" -lt "$fallback_line" ]]
+}
+
+@test "main loop surfaces the parsed reset time in the api_limit handler" {
+    local script="${BATS_TEST_DIRNAME}/../../ralph_loop.sh"
+    run grep 'PLAN_LIMIT_RESET_FILE' "$script"
+    assert_success
+    # The recovery message includes a resume hint built from the reset time
+    run grep -i 'Resets at' "$script"
+    assert_success
+}
+
+@test "behavioral: plan-limit message with reset time yields a resume hint" {
+    # End-to-end of the wired helpers: a plan-limit output -> message names the time
+    source "${BATS_TEST_DIRNAME}/../../lib/plan_limit.sh"
+    local output_file="$TEST_DIR/claude_plan_limit.log"
+    cat > "$output_file" << 'EOF'
+{"type":"system","subtype":"init","session_id":"abc123"}
+{"type":"assistant","message":"Working..."}
+Claude usage limit reached. Your limit will reset at 9pm
+EOF
+
+    local reset
+    reset=$(detect_plan_limit_reset "$output_file")
+    [ "$reset" = "9pm" ]
+    [[ "$(format_plan_limit_message "$reset")" == *"resume at 9pm"* ]]
+}
+
 # --- Claude Code Command Validation Tests (Issue #97) ---
 
 @test "validate_claude_command succeeds for command that exists" {
