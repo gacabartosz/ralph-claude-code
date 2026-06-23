@@ -631,6 +631,8 @@ Ralph uses a multi-layered strategy to prevent Claude from accidentally deleting
 | `test_metrics_tracking.bats` | 4 | Metrics tracking: track_metrics() JSON Lines format, per-loop append, ralph-stats output, print_metrics_summary (Issue #21) |
 | `test_notifications.bats` | 5 | Desktop notifications: send_notification() cross-platform (macOS/Linux/bell), disabled by default, --notify flag (Issue #22) |
 | `test_backup_rollback.bats` | 6 | Backup/rollback: create_backup() branch naming, disabled by default, graceful git-less handling, commit message, --backup flag, rollback_to_backup() checkout (Issue #23) |
+| `test_cost_utils.bats` | 22 | Token cost estimation (lib/cost_utils.sh): per-model rate resolution + overrides, compute_cost (separate in/out pricing), format_cost_usd, add_cost, cost_delta (Issue #110) |
+| `test_update_badges.bats` | 11 | Badge regeneration (scripts/update_badges.sh): version detection (VERSION file/README prose), @test counting, badge rewrite, --check drift guard (Issue #138) |
 
 ### Running Tests
 ```bash
