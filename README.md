@@ -177,6 +177,22 @@ This adds `ralph`, `ralph-monitor`, `ralph-setup`, `ralph-import`, `ralph-migrat
 
 > **Note**: You only need to do this once per system. After installation, you can delete the cloned repository if desired.
 
+#### Alternative: Nix flake (reproducible)
+
+Nix users can run Ralph without `install.sh` — all runtime deps (bash, jq, git,
+node, tmux, coreutils, gnugrep, gnused) are bundled by the flake (Issue #157):
+
+```bash
+# Run directly from the repo (no global install)
+nix run github:frankbria/ralph-claude-code -- --help
+
+# Or drop into a dev shell with the deps + test toolchain (bats, shellcheck)
+nix develop github:frankbria/ralph-claude-code
+
+# Or install into a profile
+nix profile install github:frankbria/ralph-claude-code
+```
+
 ### Phase 2: Initialize Projects (Per Project)
 
 #### Option A: Enable Ralph in Existing Project (Recommended)
