@@ -105,6 +105,33 @@ teardown() {
     [ "$provider" = "codex" ]
 }
 
+@test "update_status() includes estimated_cost_usd (defaults to 0)" {
+    # No cost file yet -> field is present and 0 (#110)
+    source "$RALPH_SCRIPT"
+
+    update_status 1 0 "starting" "running" ""
+
+    local cost
+    cost=$(jq -r '.estimated_cost_usd' "$STATUS_FILE")
+    [ "$cost" = "0" ]
+    # status.json must remain valid JSON with the numeric field
+    run jq -e '.estimated_cost_usd | type == "number"' "$STATUS_FILE"
+    assert_success
+}
+
+@test "update_status() surfaces accumulated cost from the cost file" {
+    source "$RALPH_SCRIPT"
+
+    # Simulate accumulated spend this hour
+    echo "0.067500" > "$RALPH_DIR/.cost_usd"
+
+    update_status 2 7 "executing" "running" ""
+
+    local cost
+    cost=$(jq -r '.estimated_cost_usd' "$STATUS_FILE")
+    [ "$cost" = "0.067500" ]
+}
+
 @test "update_status() with exit reason" {
     source "$RALPH_SCRIPT"
 

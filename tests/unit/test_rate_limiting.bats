@@ -324,3 +324,50 @@ EOF
     [[ "$output" == *"TOKEN_COUNT_FILE"* ]]
 }
 
+
+# =============================================================================
+# TOKEN COST TRACKING (Issue #110, ENH.2b) — exercises the REAL ralph_loop.sh
+# functions (sourced), not the inline copies above.
+# =============================================================================
+
+@test "extract_input_output_tokens splits input and output token counts" {
+    source "${BATS_TEST_DIRNAME}/../../ralph_loop.sh"
+    echo '{"usage":{"input_tokens":1500,"output_tokens":600}}' > out.json
+    [ "$(extract_input_output_tokens out.json)" = "1500 600" ]
+}
+
+@test "extract_input_output_tokens reads the metadata.usage shape too" {
+    source "${BATS_TEST_DIRNAME}/../../ralph_loop.sh"
+    echo '{"metadata":{"usage":{"input_tokens":10,"output_tokens":20}}}' > out.json
+    [ "$(extract_input_output_tokens out.json)" = "10 20" ]
+}
+
+@test "extract_input_output_tokens returns '0 0' for a missing file" {
+    source "${BATS_TEST_DIRNAME}/../../ralph_loop.sh"
+    [ "$(extract_input_output_tokens does-not-exist.json)" = "0 0" ]
+}
+
+@test "update_token_count accumulates estimated cost into COST_FILE" {
+    export CLAUDE_MODEL="claude-opus-4-8"
+    source "${BATS_TEST_DIRNAME}/../../ralph_loop.sh"
+    echo '{"usage":{"input_tokens":1500,"output_tokens":600}}' > out.json
+
+    update_token_count out.json
+
+    # opus: 1500/1e6*15 + 600/1e6*75 = 0.0225 + 0.045 = 0.067500
+    [ "$(cat "$COST_FILE")" = "0.067500" ]
+    # tokens still accumulate as before (1500 + 600)
+    [ "$(cat "$TOKEN_COUNT_FILE")" = "2100" ]
+}
+
+@test "update_token_count cost is additive across invocations" {
+    export CLAUDE_MODEL="claude-sonnet-4-6"
+    source "${BATS_TEST_DIRNAME}/../../ralph_loop.sh"
+    echo '{"usage":{"input_tokens":1000000,"output_tokens":0}}' > a.json   # $3
+    echo '{"usage":{"input_tokens":0,"output_tokens":1000000}}' > b.json   # $15
+
+    update_token_count a.json
+    update_token_count b.json
+
+    [ "$(cat "$COST_FILE")" = "18.000000" ]
+}

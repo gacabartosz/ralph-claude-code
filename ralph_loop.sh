@@ -25,6 +25,7 @@ source "$SCRIPT_DIR/lib/response_analyzer.sh" || { echo "FATAL: Failed to source
 source "$SCRIPT_DIR/lib/circuit_breaker.sh" || { echo "FATAL: Failed to source lib/circuit_breaker.sh" >&2; exit 1; }
 source "$SCRIPT_DIR/lib/file_protection.sh" || { echo "FATAL: Failed to source lib/file_protection.sh" >&2; exit 1; }
 source "$SCRIPT_DIR/lib/log_utils.sh" || { echo "FATAL: Failed to source lib/log_utils.sh" >&2; exit 1; }
+source "$SCRIPT_DIR/lib/cost_utils.sh" || { echo "FATAL: Failed to source lib/cost_utils.sh" >&2; exit 1; }
 
 # Configuration
 # Ralph-specific files live in .ralph/ subfolder
@@ -39,6 +40,7 @@ LIVE_OUTPUT=false       # Show Claude Code output in real-time (streaming)
 LIVE_LOG_FILE="$RALPH_DIR/live.log"  # Fixed file for live output monitoring
 CALL_COUNT_FILE="$RALPH_DIR/.call_count"
 TOKEN_COUNT_FILE="$RALPH_DIR/.token_count"
+COST_FILE="$RALPH_DIR/.cost_usd"           # Accumulated estimated USD cost this hour (Issue #110)
 TIMESTAMP_FILE="$RALPH_DIR/.last_reset"
 USE_TMUX=false
 
@@ -464,6 +466,7 @@ init_call_tracking() {
     if [[ "$current_hour" != "$last_reset_hour" ]]; then
         echo "0" > "$CALL_COUNT_FILE"
         echo "0" > "$TOKEN_COUNT_FILE"
+        echo "0" > "$COST_FILE"
         echo "$current_hour" > "$TIMESTAMP_FILE"
         log_status "INFO" "Call and token counters reset for new hour: $current_hour"
     fi
@@ -509,6 +512,10 @@ update_status() {
     
     local tokens_used
     tokens_used=$(cat "$TOKEN_COUNT_FILE" 2>/dev/null || echo "0")
+    local estimated_cost
+    estimated_cost=$(cat "$COST_FILE" 2>/dev/null || echo "0")
+    # Guard against a missing/garbage cost file so status.json stays valid JSON.
+    [[ "$estimated_cost" =~ ^[0-9.]+$ ]] || estimated_cost="0"
     cat > "$STATUS_FILE" << STATUSEOF
 {
     "timestamp": "$(get_iso_timestamp)",
@@ -518,6 +525,7 @@ update_status() {
     "max_calls_per_hour": $MAX_CALLS_PER_HOUR,
     "tokens_used_this_hour": $tokens_used,
     "max_tokens_per_hour": $MAX_TOKENS_PER_HOUR,
+    "estimated_cost_usd": $estimated_cost,
     "last_action": "$last_action",
     "status": "$status",
     "exit_reason": "$exit_reason",
@@ -567,7 +575,27 @@ extract_token_usage() {
     echo "${tokens:-0}"
 }
 
-# Accumulate token usage after a Claude invocation
+# Extract input and output token counts separately from a Claude output file.
+# Outputs "<input> <output>" (each 0 on failure). Cost pricing differs for input
+# vs output (Issue #110), so they must NOT be summed before pricing.
+extract_input_output_tokens() {
+    local output_file=$1
+    if [[ ! -f "$output_file" ]]; then
+        echo "0 0"
+        return
+    fi
+    local pair
+    pair=$(jq -r '
+        ((.usage.input_tokens // .metadata.usage.input_tokens // 0) |
+         if type == "number" then . else 0 end) as $in |
+        ((.usage.output_tokens // .metadata.usage.output_tokens // 0) |
+         if type == "number" then . else 0 end) as $out |
+        "\($in) \($out)"
+    ' "$output_file" 2>/dev/null)
+    echo "${pair:-0 0}"
+}
+
+# Accumulate token usage (and estimated USD cost) after a Claude invocation
 update_token_count() {
     local output_file=$1
     local new_tokens
@@ -577,6 +605,16 @@ update_token_count() {
         current=$(cat "$TOKEN_COUNT_FILE" 2>/dev/null || echo "0")
         echo $(( current + new_tokens )) > "$TOKEN_COUNT_FILE"
         log_status "INFO" "Tokens this hour: $((current + new_tokens))${MAX_TOKENS_PER_HOUR:+/$MAX_TOKENS_PER_HOUR} (+${new_tokens})"
+
+        # Accumulate estimated cost using per-model input/output rates (#110).
+        # Cost is informational and best-effort — never let it break the loop.
+        local io in_tok out_tok new_cost current_cost
+        io=$(extract_input_output_tokens "$output_file")
+        in_tok="${io%% *}"
+        out_tok="${io##* }"
+        new_cost=$(compute_cost "${CLAUDE_MODEL:-}" "$in_tok" "$out_tok")
+        current_cost=$(cat "$COST_FILE" 2>/dev/null || echo "0")
+        add_cost "$current_cost" "$new_cost" > "$COST_FILE"
     fi
 }
 
@@ -685,6 +723,7 @@ wait_for_reset() {
     # Reset counters
     echo "0" > "$CALL_COUNT_FILE"
     echo "0" > "$TOKEN_COUNT_FILE"
+    echo "0" > "$COST_FILE"
     echo "$(date +%Y%m%d%H)" > "$TIMESTAMP_FILE"
     log_status "SUCCESS" "Rate limit reset! Ready for new calls."
 }
